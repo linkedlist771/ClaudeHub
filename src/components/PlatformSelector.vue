@@ -34,7 +34,7 @@ function handleOverlayClick(event: MouseEvent) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>选择 AI 平台</h3>
+          <h3>选择 Claude 账号</h3>
           <button class="close-btn" @click="$emit('close')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>

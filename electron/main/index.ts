@@ -1,8 +1,9 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, session, dialog } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
+import fs from 'node:fs'
 
 const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -103,6 +104,80 @@ app.on('activate', () => {
     allWindows[0].focus()
   } else {
     createWindow()
+  }
+})
+
+// ---------- Claude 账号凭证 导出 / 导入 ----------
+// 登录态主要在 partition 的 cookie 里（claude.ai 的 sessionKey 是 httpOnly，
+// 只能在主进程通过 session API 读写）。导出全部账号 cookie 到 JSON，
+// 换台电脑导入后即可免登录使用。
+
+function cookieToUrl(c: Electron.Cookie): string {
+  const host = c.domain?.startsWith('.') ? c.domain.slice(1) : (c.domain || '')
+  const scheme = c.secure ? 'https' : 'http'
+  return `${scheme}://${host}${c.path || '/'}`
+}
+
+// accounts: { id: string; name: string }[]
+ipcMain.handle('export-accounts', async (_, accounts: { id: string; name: string }[]) => {
+  try {
+    const out: any[] = []
+    for (const acc of accounts || []) {
+      const ses = session.fromPartition(`persist:claude-${acc.id}`)
+      const cookies = await ses.cookies.get({})
+      out.push({ id: acc.id, name: acc.name, cookies })
+    }
+    const data = JSON.stringify({ app: 'ParallelChat', version: 1, exportedAt: Date.now(), accounts: out }, null, 2)
+
+    const { canceled, filePath } = await dialog.showSaveDialog({
+      title: '导出 Claude 账号凭证',
+      defaultPath: `claude-accounts-${new Date().toISOString().slice(0, 10)}.json`,
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (canceled || !filePath) return { ok: false, canceled: true }
+    fs.writeFileSync(filePath, data, 'utf-8')
+    return { ok: true, filePath, count: out.length }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+})
+
+ipcMain.handle('import-accounts', async () => {
+  try {
+    const { canceled, filePaths } = await dialog.showOpenDialog({
+      title: '导入 Claude 账号凭证',
+      properties: ['openFile'],
+      filters: [{ name: 'JSON', extensions: ['json'] }],
+    })
+    if (canceled || !filePaths?.[0]) return { ok: false, canceled: true }
+
+    const parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'))
+    const accounts = Array.isArray(parsed?.accounts) ? parsed.accounts : []
+
+    for (const acc of accounts) {
+      const ses = session.fromPartition(`persist:claude-${acc.id}`)
+      for (const c of acc.cookies || []) {
+        try {
+          await ses.cookies.set({
+            url: cookieToUrl(c),
+            name: c.name,
+            value: c.value,
+            domain: c.domain,
+            path: c.path,
+            secure: c.secure,
+            httpOnly: c.httpOnly,
+            expirationDate: c.expirationDate,
+            sameSite: c.sameSite,
+          })
+        } catch (err) {
+          console.error('set cookie failed:', c?.name, err)
+        }
+      }
+    }
+    // 回传账号元数据，渲染进程据此合并账号列表
+    return { ok: true, count: accounts.length, accounts: accounts.map((a: any) => ({ id: a.id, name: a.name })) }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
   }
 })
 

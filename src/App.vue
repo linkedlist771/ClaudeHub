@@ -1,20 +1,35 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import WebViewPanel from './components/WebViewPanel.vue'
-import LayoutSelector, { type LayoutType, type PresetLayoutType } from './components/LayoutSelector.vue'
+import LayoutSelector, { type LayoutType } from './components/LayoutSelector.vue'
 import PlatformSelector from './components/PlatformSelector.vue'
 import ResizableLayout, { type CustomLayoutConfig } from './components/ResizableLayout.vue'
 import SessionHistory, { type SessionRecord } from './components/SessionHistory.vue'
-import { SITE_CONFIGS, getSiteConfigById } from './utils/siteConfigs'
+import ClaudeDashboard, { type ClaudeAccount } from './components/ClaudeDashboard.vue'
+import { getSiteConfigById } from './utils/siteConfigs'
 import { InputManager } from './utils/inputManager'
 
-// 从配置中提取平台信息用于UI展示
-const allPlatforms = SITE_CONFIGS.map(config => ({
-  id: config.id,
-  name: config.name,
-  url: config.url,
-  color: config.color
-}))
+// Claude 站点基础配置（整个应用只用 Claude）
+const claudeConfig = getSiteConfigById('claude')!
+
+interface Platform {
+  id: string
+  name: string
+  url: string
+  color: string
+}
+
+// 把一个账号 id 转成用于渲染的合成 platform；id 唯一 => partition / webview 自动隔离
+function accountToPlatform(accountId: string): Platform | null {
+  const acc = claudeAccounts.value.find(a => a.id === accountId)
+  if (!acc) return null
+  return {
+    id: `claude-${acc.id}`,
+    name: acc.name,
+    url: claudeConfig.url,
+    color: claudeConfig.color
+  }
+}
 
 // 布局配置
 const currentLayout = ref<LayoutType>('four-grid')
@@ -30,10 +45,10 @@ const currentCustomConfig = computed(() => {
 // 是否使用自定义布局
 const isCustomLayout = computed(() => !!currentCustomConfig.value)
 
-// 每个槽位对应的平台ID
-const slotPlatforms = ref<string[]>(['chatgpt', 'gemini', 'claude', 'grok'])
+// 每个槽位对应的账号 ID（'' 表示该槽位未分配账号）
+const slotAccounts = ref<string[]>([])
 
-// 平台选择器状态
+// 账号选择器状态
 const showPlatformSelector = ref(false)
 const editingSlotIndex = ref<number | null>(null)
 
@@ -41,7 +56,7 @@ const editingSlotIndex = ref<number | null>(null)
 const inputMessage = ref('')
 const isInputFocused = ref(false)
 const isSending = ref(false)
-const sendResults = ref<{ platformId: string; success: boolean; message: string }[]>([])
+const sendResults = ref<{ platformId: string; name: string; success: boolean; message: string }[]>([])
 
 // 图片附件状态
 interface ImageAttachment {
@@ -58,6 +73,150 @@ const isMaximized = computed(() => maximizedPanelIndex.value !== null)
 // 会话历史状态
 const showSessionHistory = ref(false)
 const savedSessions = ref<SessionRecord[]>([])
+
+// 视图模式：dashboard = Claude 账号主页，workspace = 并行工作区（账号窗口并排）
+const viewMode = ref<'dashboard' | 'workspace'>('dashboard')
+
+// 是否显示底部统一输入框（隐藏后账号窗口自适应撑满，设置持久化）
+const showInputBar = ref(true)
+
+// Claude 多账号
+const claudeAccounts = ref<ClaudeAccount[]>([])
+
+// 确保槽位已按当前可用账号填充（空缺补 ''）
+function ensureSlotsInitialized() {
+  const ids = claudeAccounts.value.map(a => a.id)
+  const slots = [...slotAccounts.value]
+  for (let i = 0; i < slotCount.value; i++) {
+    // 槽位为空或引用了已删除账号时，尝试补一个尚未占用的账号
+    if (!slots[i] || !ids.includes(slots[i])) {
+      const used = new Set(slots)
+      const next = ids.find(id => !used.has(id))
+      slots[i] = next || ''
+    }
+  }
+  slotAccounts.value = slots
+}
+
+// 进入并行工作区（保持已选账号）
+function enterWorkspace() {
+  ensureSlotsInitialized()
+  maximizedPanelIndex.value = null
+  viewMode.value = 'workspace'
+}
+
+// 从账号卡片进入：放到槽位 0 并最大化 => 单账号全屏使用
+function handleEnterAccount(id: string) {
+  ensureSlotsInitialized()
+  const slots = [...slotAccounts.value]
+  // 若该账号已在某槽位，最大化那个槽位；否则放到槽位 0
+  let idx = slots.indexOf(id)
+  if (idx === -1) {
+    slots[0] = id
+    idx = 0
+  }
+  slotAccounts.value = slots
+  viewMode.value = 'workspace'
+  nextTick(() => { maximizedPanelIndex.value = idx })
+}
+
+function backToDashboard() {
+  viewMode.value = 'dashboard'
+  maximizedPanelIndex.value = null
+}
+
+function handleAddAccount(name: string) {
+  claudeAccounts.value.push({ id: `acct-${Date.now()}`, name })
+  saveAccounts()
+}
+
+// 快速切换某个槽位的账号（来自面板标题栏下拉）
+function handleSwitchAccount(slotIndex: number, accountId: string) {
+  const newSlots = [...slotAccounts.value]
+  const dup = newSlots.indexOf(accountId)
+  if (dup !== -1 && dup !== slotIndex) {
+    newSlots[dup] = newSlots[slotIndex] || ''
+  }
+  newSlots[slotIndex] = accountId
+  slotAccounts.value = newSlots
+}
+
+// 导出所有账号凭证到 JSON 文件
+async function handleExportAccounts() {
+  if (claudeAccounts.value.length === 0) {
+    alert('还没有账号可导出')
+    return
+  }
+  const ipc = (window as any).ipcRenderer
+  if (!ipc?.invoke) {
+    alert('当前环境不支持导出')
+    return
+  }
+  const payload = claudeAccounts.value.map(a => ({ id: a.id, name: a.name }))
+  const res = await ipc.invoke('export-accounts', payload)
+  if (res?.ok) {
+    alert(`已导出 ${res.count} 个账号凭证到：\n${res.filePath}\n\n⚠️ 该文件含登录凭证，等同于账号密码，请妥善保管、勿外传。`)
+  } else if (!res?.canceled) {
+    alert('导出失败：' + (res?.error || '未知错误'))
+  }
+}
+
+// 从 JSON 文件导入账号凭证
+async function handleImportAccounts() {
+  const ipc = (window as any).ipcRenderer
+  if (!ipc?.invoke) {
+    alert('当前环境不支持导入')
+    return
+  }
+  const res = await ipc.invoke('import-accounts')
+  if (res?.ok) {
+    // 合并账号列表（cookie 已由主进程写入对应分区）
+    for (const acc of res.accounts || []) {
+      const exist = claudeAccounts.value.find(a => a.id === acc.id)
+      if (exist) {
+        exist.name = acc.name
+      } else {
+        claudeAccounts.value.push({ id: acc.id, name: acc.name })
+      }
+    }
+    saveAccounts()
+    alert(`已导入 ${res.count} 个账号，点进去即可直接使用（无需重新登录）。`)
+  } else if (!res?.canceled) {
+    alert('导入失败：' + (res?.error || '未知错误'))
+  }
+}
+
+function handleRenameAccount(id: string, name: string) {
+  const acct = claudeAccounts.value.find(a => a.id === id)
+  if (acct) {
+    acct.name = name
+    saveAccounts()
+  }
+}
+
+function handleDeleteAccount(id: string) {
+  const index = claudeAccounts.value.findIndex(a => a.id === id)
+  if (index !== -1) {
+    claudeAccounts.value.splice(index, 1)
+    saveAccounts()
+  }
+}
+
+function saveAccounts() {
+  localStorage.setItem('parallelchat-claude-accounts', JSON.stringify(claudeAccounts.value))
+}
+
+function loadAccounts() {
+  try {
+    const saved = localStorage.getItem('parallelchat-claude-accounts')
+    if (saved) {
+      const parsed = JSON.parse(saved)
+      if (Array.isArray(parsed)) claudeAccounts.value = parsed
+    }
+  } catch (e) {
+    console.error('Failed to load claude accounts:', e)
+  }
+}
 
 // 根据布局类型计算需要的槽位数量
 const slotCount = computed(() => {
@@ -80,12 +239,24 @@ const slotCount = computed(() => {
   }
 })
 
-// 当前显示的平台列表
-const visiblePlatforms = computed(() => {
-  return slotPlatforms.value.slice(0, slotCount.value).map(id => {
-    return allPlatforms.find(p => p.id === id) || allPlatforms[0]
-  })
+// 当前显示的账号面板列表（null = 未分配账号的空槽位）
+const visiblePlatforms = computed<(Platform | null)[]>(() => {
+  const slots: (Platform | null)[] = []
+  for (let i = 0; i < slotCount.value; i++) {
+    slots.push(accountToPlatform(slotAccounts.value[i] || ''))
+  }
+  return slots
 })
+
+// 账号选择器用的列表（复用 PlatformSelector，把账号映射成 platform 形状）
+const accountOptions = computed<Platform[]>(() =>
+  claudeAccounts.value.map(a => ({
+    id: a.id,
+    name: a.name,
+    url: claudeConfig.url,
+    color: claudeConfig.color
+  }))
+)
 
 // 布局的 CSS 类名（仅用于预设布局）
 const layoutClass = computed(() => {
@@ -97,10 +268,11 @@ const layoutClass = computed(() => {
 onMounted(() => {
   loadConfig()
   loadSessions()
+  loadAccounts()
 })
 
 // 监听配置变化并保存
-watch([currentLayout, slotPlatforms, customLayouts], () => {
+watch([currentLayout, slotAccounts, customLayouts, showInputBar], () => {
   saveConfig()
 }, { deep: true })
 
@@ -148,7 +320,7 @@ function handleCustomConfigUpdate(config: CustomLayoutConfig) {
   }
 }
 
-// 处理切换平台按钮点击
+// 处理切换账号按钮点击
 function handleChangePlatform(slotIndex: number) {
   editingSlotIndex.value = slotIndex
   showPlatformSelector.value = true
@@ -165,18 +337,23 @@ function handleToggleMaximize(slotIndex: number) {
   }
 }
 
-// 处理平台选择
+// 处理账号选择（platform.id 即账号 id）
 function handlePlatformSelect(platform: { id: string; name: string; url: string; color: string }) {
   if (editingSlotIndex.value !== null) {
-    const newSlots = [...slotPlatforms.value]
+    const newSlots = [...slotAccounts.value]
+    // 同一账号已在别的槽位则交换，避免两个槽位指向同一账号
+    const dup = newSlots.indexOf(platform.id)
+    if (dup !== -1 && dup !== editingSlotIndex.value) {
+      newSlots[dup] = newSlots[editingSlotIndex.value] || ''
+    }
     newSlots[editingSlotIndex.value] = platform.id
-    slotPlatforms.value = newSlots
+    slotAccounts.value = newSlots
   }
   showPlatformSelector.value = false
   editingSlotIndex.value = null
 }
 
-// 关闭平台选择器
+// 关闭账号选择器
 function closePlatformSelector() {
   showPlatformSelector.value = false
   editingSlotIndex.value = null
@@ -186,8 +363,9 @@ function closePlatformSelector() {
 function saveConfig() {
   const config = {
     layout: currentLayout.value,
-    slots: slotPlatforms.value,
-    customLayouts: customLayouts.value
+    slots: slotAccounts.value,
+    customLayouts: customLayouts.value,
+    showInputBar: showInputBar.value
   }
   localStorage.setItem('parallelchat-config', JSON.stringify(config))
 }
@@ -205,7 +383,10 @@ function loadConfig() {
         currentLayout.value = config.layout
       }
       if (config.slots && Array.isArray(config.slots)) {
-        slotPlatforms.value = config.slots
+        slotAccounts.value = config.slots
+      }
+      if (typeof config.showInputBar === 'boolean') {
+        showInputBar.value = config.showInputBar
       }
     }
   } catch (e) {
@@ -233,13 +414,16 @@ function saveSessions() {
 // 获取所有 WebView 的当前 URL
 async function getCurrentUrls(): Promise<string[]> {
   const urls: string[] = []
-  const visiblePlatformIds = slotPlatforms.value.slice(0, slotCount.value)
-  
-  for (let i = 0; i < visiblePlatformIds.length; i++) {
-    const platformId = visiblePlatformIds[i]
-    const webviewId = `webview-${platformId}-${i}`
+
+  for (let i = 0; i < visiblePlatforms.value.length; i++) {
+    const platform = visiblePlatforms.value[i]
+    if (!platform) {
+      urls.push('')
+      continue
+    }
+    const webviewId = `webview-${platform.id}-${i}`
     const webview = document.getElementById(webviewId) as any
-    
+
     if (webview && webview.getURL) {
       try {
         urls.push(webview.getURL())
@@ -250,19 +434,15 @@ async function getCurrentUrls(): Promise<string[]> {
       urls.push('')
     }
   }
-  
+
   return urls
 }
 
 // 保存当前会话
 async function handleSaveSession() {
   const urls = await getCurrentUrls()
-  const visiblePlatformIds = slotPlatforms.value.slice(0, slotCount.value)
-  const platformNames = visiblePlatformIds.map(id => {
-    const config = getSiteConfigById(id)
-    return config?.name || id
-  })
-  
+  const platformNames = visiblePlatforms.value.map(p => p?.name || '空')
+
   const session: SessionRecord = {
     id: `session-${Date.now()}`,
     name: `会话 ${savedSessions.value.length + 1}`,
@@ -288,13 +468,11 @@ async function handleRestoreSession(session: SessionRecord) {
   await nextTick()
   
   // 恢复每个 WebView 的 URL
-  const visiblePlatformIds = slotPlatforms.value.slice(0, slotCount.value)
-  
-  for (let i = 0; i < session.urls.length && i < visiblePlatformIds.length; i++) {
+  for (let i = 0; i < session.urls.length && i < visiblePlatforms.value.length; i++) {
     const url = session.urls[i]
-    if (url) {
-      const platformId = visiblePlatformIds[i]
-      const webviewId = `webview-${platformId}-${i}`
+    const platform = visiblePlatforms.value[i]
+    if (url && platform) {
+      const webviewId = `webview-${platform.id}-${i}`
       const webview = document.getElementById(webviewId) as any
       
       if (webview && webview.loadURL) {
@@ -335,26 +513,23 @@ async function handleSend() {
   
   isSending.value = true
   sendResults.value = []
-  
-  // 获取当前可见的平台ID列表
-  const visiblePlatformIds = slotPlatforms.value.slice(0, slotCount.value)
-  
-  console.log('Sending to platforms:', visiblePlatformIds, 'with images:', hasImages)
-  
-  // 图片已经在粘贴时同步了，现在只需要输入文字并发送
-  const promises = visiblePlatformIds.map(async (platformId, index) => {
-    const siteConfig = getSiteConfigById(platformId)
-    if (!siteConfig) {
-      return { platformId, success: false, message: '配置未找到' }
-    }
-    
+
+  console.log('Sending to accounts with images:', hasImages)
+
+  // 图片已经在粘贴时同步了，现在只需要输入文字并发送（所有可见账号都是 Claude）
+  const siteConfig = claudeConfig
+  const promises = visiblePlatforms.value.map(async (platform, index) => {
+    if (!platform) return null
+    const platformId = platform.id
+    const name = platform.name
+
     const webviewId = `webview-${platformId}-${index}`
     const webview = document.getElementById(webviewId) as any
-    
+
     if (!webview) {
-      return { platformId, success: false, message: 'WebView未找到' }
+      return { platformId, name, success: false, message: 'WebView未找到' }
     }
-    
+
     try {
       const inputManager = new InputManager(siteConfig)
       
@@ -372,18 +547,21 @@ async function handleSend() {
       
       return {
         platformId,
+        name,
         success: sendResult?.success ?? false,
         message: sendResult?.message || sendResult?.error || '已发送'
       }
     } catch (error: any) {
       console.error(`${platformId} error:`, error)
-      return { platformId, success: false, message: error.message || '执行失败' }
+      return { platformId, name, success: false, message: error.message || '执行失败' }
     }
   })
   
-  const results = await Promise.all(promises)
+  const results = (await Promise.all(promises)).filter(
+    (r): r is { platformId: string; name: string; success: boolean; message: string } => r !== null
+  )
   sendResults.value = results
-  
+
   // 如果有成功的，清空输入框和图片
   const hasSuccess = results.some(r => r.success)
   if (hasSuccess) {
@@ -796,39 +974,36 @@ function addImageAttachment(file: File) {
   reader.readAsDataURL(file)
 }
 
-// 同步图片到所有可见平台
+// 同步图片到所有可见账号（均为 Claude）
 async function syncImageToAllPlatforms(imageDataUrl: string) {
-  const visiblePlatformIds = slotPlatforms.value.slice(0, slotCount.value)
-  
-  console.log('Syncing image to platforms:', visiblePlatformIds)
-  
-  // 并行粘贴到所有平台
-  const promises = visiblePlatformIds.map(async (platformId, index) => {
-    const siteConfig = getSiteConfigById(platformId)
-    if (!siteConfig) return
-    
-    const webviewId = `webview-${platformId}-${index}`
+  const siteConfig = claudeConfig
+
+  // 并行粘贴到所有可见账号
+  const promises = visiblePlatforms.value.map(async (platform, index) => {
+    if (!platform) return
+
+    const webviewId = `webview-${platform.id}-${index}`
     const webview = document.getElementById(webviewId) as any
-    
+
     if (!webview) return
-    
+
     try {
       const inputManager = new InputManager(siteConfig)
-      
+
       // 先聚焦输入框
       const focusScript = inputManager.getSimulatePasteScript()
       await webview.executeJavaScript(focusScript)
       await new Promise(r => setTimeout(r, 100))
-      
-      // 粘贴图片
-      const pasteImageScript = generatePasteImageScript(imageDataUrl, siteConfig.textareaSelectors, platformId)
+
+      // 粘贴图片（统一走 claude 策略）
+      const pasteImageScript = generatePasteImageScript(imageDataUrl, siteConfig.textareaSelectors, 'claude')
       const result = await webview.executeJavaScript(pasteImageScript)
-      console.log(`${platformId} paste result:`, result)
+      console.log(`${platform.id} paste result:`, result)
     } catch (error) {
-      console.error(`${platformId} paste error:`, error)
+      console.error(`${platform.id} paste error:`, error)
     }
   })
-  
+
   await Promise.all(promises)
 }
 
@@ -878,12 +1053,15 @@ function getCustomPanelStyle(index: number) {
       @rename="handleRenameSession"
     />
 
-    <!-- 顶部工具栏 -->
-    <div v-if="!isMaximized" class="toolbar">
+    <!-- 顶部工具栏（仅并行工作区显示） -->
+    <div v-if="viewMode === 'workspace' && !isMaximized" class="toolbar">
       <div class="toolbar-left">
+        <button class="claude-accounts-btn" @click="backToDashboard" title="返回账号面板">
+          ← 账号面板
+        </button>
         <!-- 会话历史按钮 -->
-        <button 
-          class="history-btn" 
+        <button
+          class="history-btn"
           :class="{ active: showSessionHistory }"
           @click="showSessionHistory = !showSessionHistory"
           title="会话历史"
@@ -895,25 +1073,54 @@ function getCustomPanelStyle(index: number) {
             <rect x="14" y="14" width="7" height="7" rx="1"/>
           </svg>
         </button>
-        <span class="app-title">ParallelChat</span>
+        <span class="app-title">并行工作区</span>
       </div>
-      <LayoutSelector
-        :current-layout="currentLayout"
-        :custom-layouts="customLayouts"
-        @select="handleLayoutChange"
-        @add-custom="handleAddCustomLayout"
-        @delete-custom="handleDeleteCustomLayout"
-      />
+      <div class="toolbar-right">
+        <button
+          class="input-toggle-btn"
+          :class="{ active: !showInputBar }"
+          @click="showInputBar = !showInputBar"
+          :title="showInputBar ? '隐藏输入框（窗口撑满）' : '显示输入框'"
+        >
+          {{ showInputBar ? '隐藏输入框' : '显示输入框' }}
+        </button>
+        <LayoutSelector
+          :current-layout="currentLayout"
+          :custom-layouts="customLayouts"
+          @select="handleLayoutChange"
+          @add-custom="handleAddCustomLayout"
+          @delete-custom="handleDeleteCustomLayout"
+        />
+      </div>
     </div>
 
+    <!-- Claude 账号主页 -->
+    <ClaudeDashboard
+      v-if="viewMode === 'dashboard'"
+      :accounts="claudeAccounts"
+      @enter="handleEnterAccount"
+      @enter-workspace="enterWorkspace"
+      @add="handleAddAccount"
+      @rename="handleRenameAccount"
+      @delete="handleDeleteAccount"
+      @export="handleExportAccounts"
+      @import="handleImportAccounts"
+    />
+
     <!-- 最大化面板 -->
-    <div v-if="isMaximized && maximizedPanelIndex !== null" class="maximized-container">
+    <div v-else-if="isMaximized && maximizedPanelIndex !== null && visiblePlatforms[maximizedPanelIndex]" class="maximized-container">
       <WebViewPanel
-        :platform="visiblePlatforms[maximizedPanelIndex]"
+        :platform="visiblePlatforms[maximizedPanelIndex]!"
         :slot-index="maximizedPanelIndex"
         :is-maximized="true"
+        :input-bar-visible="showInputBar"
+        :accounts="claudeAccounts"
+        :current-account-id="slotAccounts[maximizedPanelIndex]"
         @change-platform="handleChangePlatform"
         @toggle-maximize="handleToggleMaximize"
+        @toggle-input="showInputBar = !showInputBar"
+        @back-dashboard="backToDashboard"
+        @switch-account="(id) => handleSwitchAccount(maximizedPanelIndex!, id)"
       />
     </div>
 
@@ -926,7 +1133,7 @@ function getCustomPanelStyle(index: number) {
     >
       <div
         v-for="(platform, index) in visiblePlatforms"
-        :key="`${platform.id}-${index}`"
+        :key="`slot-${index}`"
         class="grid-item"
       >
         <WebViewPanel
@@ -942,7 +1149,7 @@ function getCustomPanelStyle(index: number) {
     <div v-else :class="['grid-container', layoutClass]">
       <div
         v-for="(platform, index) in visiblePlatforms"
-        :key="`${platform.id}-${index}`"
+        :key="`slot-${index}`"
         class="grid-item"
       >
         <WebViewPanel
@@ -954,17 +1161,17 @@ function getCustomPanelStyle(index: number) {
       </div>
     </div>
 
-    <!-- 平台选择弹窗 -->
+    <!-- 账号选择弹窗 -->
     <PlatformSelector
-      :platforms="allPlatforms"
+      :platforms="accountOptions"
       :visible="showPlatformSelector"
-      :current-platform-id="editingSlotIndex !== null ? slotPlatforms[editingSlotIndex] : undefined"
+      :current-platform-id="editingSlotIndex !== null ? slotAccounts[editingSlotIndex] : undefined"
       @select="handlePlatformSelect"
       @close="closePlatformSelector"
     />
 
     <!-- 底部输入框 -->
-    <div class="input-container">
+    <div v-if="viewMode === 'workspace' && showInputBar" class="input-container">
       <!-- 发送结果提示 -->
       <div v-if="sendResults.length > 0" class="send-results">
         <div 
@@ -972,7 +1179,7 @@ function getCustomPanelStyle(index: number) {
           :key="result.platformId"
           :class="['result-item', { success: result.success, error: !result.success }]"
         >
-          <span class="result-platform">{{ result.platformId }}</span>
+          <span class="result-platform">{{ result.name }}</span>
           <span class="result-message">{{ result.message }}</span>
         </div>
       </div>
@@ -1056,6 +1263,35 @@ function getCustomPanelStyle(index: number) {
   gap: 12px;
 }
 
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.input-toggle-btn {
+  padding: 6px 12px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background-color: transparent;
+  color: #aaa;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.input-toggle-btn:hover {
+  background-color: #2a2a2a;
+  color: #fff;
+}
+
+.input-toggle-btn.active {
+  background-color: rgba(100, 108, 255, 0.16);
+  border-color: rgba(100, 108, 255, 0.5);
+  color: #aeb3ff;
+}
+
 .history-btn {
   display: flex;
   align-items: center;
@@ -1085,6 +1321,85 @@ function getCustomPanelStyle(index: number) {
   font-size: 15px;
   font-weight: 600;
   color: #fff;
+}
+
+.claude-accounts-btn {
+  padding: 6px 12px;
+  border: 1px solid #3a3a3a;
+  border-radius: 6px;
+  background-color: transparent;
+  color: #d97706;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.claude-accounts-btn:hover {
+  background-color: #2a2a2a;
+}
+
+.claude-accounts-btn.active {
+  background-color: #d97706;
+  color: #fff;
+  border-color: #d97706;
+}
+
+/* 单账号使用视图 */
+.account-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #242424;
+  overflow: hidden;
+}
+
+.account-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background-color: #2a2a2a;
+  border-bottom: 1px solid #333;
+  flex-shrink: 0;
+}
+
+.account-back-btn,
+.account-refresh-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 6px;
+  background-color: #3a3a3a;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.account-back-btn:hover,
+.account-refresh-btn:hover {
+  background-color: #4a4a4a;
+}
+
+.account-refresh-btn {
+  margin-left: auto;
+}
+
+.account-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.account-loading {
+  font-size: 12px;
+  color: #888;
+}
+
+.account-webview {
+  flex: 1;
+  width: 100%;
+  border: none;
 }
 
 .grid-container {

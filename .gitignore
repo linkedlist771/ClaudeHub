@@ -27,3 +27,4 @@ release
 # lockfile (keep package-lock.json for CI/CD)
 pnpm-lock.yaml
 yarn.lock
+.omc
