@@ -138,7 +138,8 @@ function handleHeaderDoubleClick() {
           @click="emit('back-dashboard')"
           title="返回账号面板"
         >
-          ← 账号面板
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:5px"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          账号面板
         </button>
         <!-- 输入框显隐（仅最大化视图，因为此时顶部工具栏隐藏） -->
         <button
@@ -193,6 +194,9 @@ function handleHeaderDoubleClick() {
 
     <!-- 空槽位占位 -->
     <div v-else class="empty-slot" @click="handleChangePlatform">
+      <span class="empty-slot-icon" aria-hidden="true">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+      </span>
       <span class="empty-slot-text">点击选择 Claude 账号</span>
     </div>
   </div>
@@ -202,37 +206,41 @@ function handleHeaderDoubleClick() {
 .panel-container {
   display: flex;
   flex-direction: column;
-  background-color: #242424;
-  border-radius: 8px;
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
   overflow: hidden;
   height: 100%;
 }
 
 .panel-container.maximized {
   border-radius: 0;
+  border: none;
 }
 
 .panel-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 12px;
-  background-color: #2a2a2a;
+  padding: 9px 12px;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--line);
   border-left: 3px solid;
-  min-height: 20px;
+  min-height: 22px;
   flex-shrink: 0;
   cursor: pointer;
   user-select: none;
+  transition: background 0.15s;
 }
 
 .panel-header:hover {
-  background-color: #333;
+  background-color: var(--surface-alt);
 }
 
 .platform-name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ink);
 }
 
 /* 账号快速切换 */
@@ -244,21 +252,21 @@ function handleHeaderDoubleClick() {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 4px 9px;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background-color: transparent;
-  color: #fff;
+  color: var(--ink);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .account-switcher-btn:hover {
-  background-color: rgba(255, 255, 255, 0.08);
+  background-color: var(--surface-alt);
 }
 
 .account-switcher-btn svg {
-  color: #999;
+  color: var(--muted);
   transition: transform 0.2s;
 }
 
@@ -270,10 +278,10 @@ function handleHeaderDoubleClick() {
   max-height: 360px;
   overflow-y: auto;
   padding: 6px;
-  border: 1px solid #3a3a3a;
-  border-radius: 10px;
-  background-color: #2a2a2a;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background-color: var(--surface);
+  box-shadow: var(--shadow-lg);
   z-index: 100;
 }
 
@@ -284,9 +292,9 @@ function handleHeaderDoubleClick() {
   width: 100%;
   padding: 9px 10px;
   border: none;
-  border-radius: 7px;
+  border-radius: 8px;
   background-color: transparent;
-  color: #ddd;
+  color: var(--ink-2);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
@@ -294,11 +302,12 @@ function handleHeaderDoubleClick() {
 }
 
 .account-menu-item:hover {
-  background-color: #3a3a3a;
+  background-color: var(--surface-alt);
 }
 
 .account-menu-item.active {
-  color: #fff;
+  color: var(--clay-deep);
+  font-weight: 600;
 }
 
 .account-menu-name {
@@ -311,12 +320,12 @@ function handleHeaderDoubleClick() {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background-color: #555;
+  background-color: var(--line-strong);
   flex-shrink: 0;
 }
 
 .dot.on {
-  background-color: #d97706;
+  background-color: var(--clay);
 }
 
 .header-actions {
@@ -327,7 +336,7 @@ function handleHeaderDoubleClick() {
 
 .loading-indicator {
   font-size: 12px;
-  color: #888;
+  color: var(--muted);
   margin-right: 4px;
 }
 
@@ -335,32 +344,32 @@ function handleHeaderDoubleClick() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 7px;
   background-color: transparent;
-  color: #888;
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .action-btn:hover {
-  background-color: #3a3a3a;
-  color: #fff;
+  background-color: var(--surface-alt);
+  color: var(--ink);
 }
 
 /* 文字型操作按钮（最大化视图：返回、显隐输入框） */
 .text-action {
   display: flex;
   align-items: center;
-  height: 28px;
+  height: 30px;
   padding: 0 12px;
-  border: none;
-  border-radius: 7px;
-  background-color: transparent;
-  color: #b5b5b5;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background-color: var(--surface);
+  color: var(--ink-2);
   font-size: 12px;
   font-weight: 500;
   white-space: nowrap;
@@ -369,20 +378,21 @@ function handleHeaderDoubleClick() {
 }
 
 .text-action:hover {
-  background-color: rgba(255, 255, 255, 0.08);
-  color: #fff;
+  background-color: var(--surface-alt);
+  color: var(--ink);
 }
 
 .text-action.active {
-  background-color: rgba(100, 108, 255, 0.16);
-  color: #aeb3ff;
+  background-color: var(--clay-tint);
+  border-color: var(--clay-soft);
+  color: var(--clay-deep);
 }
 
 .header-divider {
   width: 1px;
   height: 18px;
   margin: 0 4px;
-  background-color: #3f3f3f;
+  background-color: var(--line-strong);
 }
 
 .webview {
@@ -394,19 +404,34 @@ function handleHeaderDoubleClick() {
 .empty-slot {
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  background-color: #1f1f1f;
+  gap: 12px;
+  background-color: var(--surface-alt);
+  background-image: radial-gradient(circle at 1px 1px, rgba(120, 110, 90, 0.06) 1px, transparent 0);
+  background-size: 18px 18px;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .empty-slot:hover {
-  background-color: #262626;
+  background-color: var(--clay-tint);
+}
+
+.empty-slot-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  border: 1px dashed var(--line-strong);
+  color: var(--kraft);
 }
 
 .empty-slot-text {
-  color: #777;
+  color: var(--muted);
   font-size: 14px;
 }
 </style>

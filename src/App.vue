@@ -1186,7 +1186,8 @@ function getCustomPanelStyle(index: number) {
     <div v-if="viewMode === 'workspace' && !isMaximized" class="toolbar">
       <div class="toolbar-left">
         <button class="claude-accounts-btn" @click="backToDashboard" title="返回账号面板">
-          ← 账号面板
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
+          账号面板
         </button>
         <!-- 会话历史按钮 -->
         <button
@@ -1385,7 +1386,7 @@ function getCustomPanelStyle(index: number) {
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background-color: #1a1a1a;
+  background-color: var(--bg);
   overflow: hidden;
 }
 
@@ -1411,10 +1412,10 @@ function getCustomPanelStyle(index: number) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
-  background-color: #1a1a1a;
-  border-bottom: 1px solid #333;
-  height: 44px;
+  padding: 0 18px;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--line);
+  height: 52px;
   flex-shrink: 0;
 }
 
@@ -1427,83 +1428,93 @@ function getCustomPanelStyle(index: number) {
 .toolbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
 }
 
 .input-toggle-btn {
-  padding: 6px 12px;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  background-color: transparent;
-  color: #aaa;
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background-color: var(--surface);
+  color: var(--ink-2);
+  font-family: var(--font-sans);
   font-size: 13px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
   white-space: nowrap;
 }
 
 .input-toggle-btn:hover {
-  background-color: #2a2a2a;
-  color: #fff;
+  background-color: var(--surface-alt);
+  color: var(--ink);
 }
 
 .input-toggle-btn.active {
-  background-color: rgba(100, 108, 255, 0.16);
-  border-color: rgba(100, 108, 255, 0.5);
-  color: #aeb3ff;
+  background-color: var(--clay-tint);
+  border-color: var(--clay-soft);
+  color: var(--clay-deep);
 }
 
 .history-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: none;
-  border-radius: 6px;
-  background-color: transparent;
-  color: #888;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background-color: var(--surface);
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .history-btn:hover {
-  background-color: #333;
-  color: #fff;
+  background-color: var(--surface-alt);
+  color: var(--ink);
 }
 
 .history-btn.active {
-  background-color: #646cff;
-  color: #fff;
+  background-color: var(--clay);
+  border-color: var(--clay);
+  color: #FBF7F2;
 }
 
 .app-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
 }
 
 .claude-accounts-btn {
-  padding: 6px 12px;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  background-color: transparent;
-  color: #d97706;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background-color: var(--surface);
+  color: var(--clay-deep);
+  font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .claude-accounts-btn:hover {
-  background-color: #2a2a2a;
+  background-color: var(--clay-tint);
+  border-color: var(--clay-soft);
 }
 
 .claude-accounts-btn.active {
-  background-color: #d97706;
-  color: #fff;
-  border-color: #d97706;
+  background-color: var(--clay);
+  color: #FBF7F2;
+  border-color: var(--clay);
 }
 
 /* 单账号使用视图 */
@@ -1511,7 +1522,7 @@ function getCustomPanelStyle(index: number) {
   flex: 1;
   display: flex;
   flex-direction: column;
-  background-color: #242424;
+  background-color: var(--surface);
   overflow: hidden;
 }
 
@@ -1520,26 +1531,26 @@ function getCustomPanelStyle(index: number) {
   align-items: center;
   gap: 12px;
   padding: 8px 16px;
-  background-color: #2a2a2a;
-  border-bottom: 1px solid #333;
+  background-color: var(--surface);
+  border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
 
 .account-back-btn,
 .account-refresh-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 6px;
-  background-color: #3a3a3a;
-  color: #fff;
+  padding: 7px 13px;
+  border: 1px solid var(--line-strong);
+  border-radius: 9px;
+  background-color: var(--surface);
+  color: var(--ink);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.18s;
 }
 
 .account-back-btn:hover,
 .account-refresh-btn:hover {
-  background-color: #4a4a4a;
+  background-color: var(--surface-alt);
 }
 
 .account-refresh-btn {
@@ -1549,12 +1560,12 @@ function getCustomPanelStyle(index: number) {
 .account-name {
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
+  color: var(--ink);
 }
 
 .account-loading {
   font-size: 12px;
-  color: #888;
+  color: var(--muted);
 }
 
 .account-webview {
@@ -1566,23 +1577,23 @@ function getCustomPanelStyle(index: number) {
 .grid-container {
   flex: 1;
   display: grid;
-  gap: 4px;
-  padding: 4px;
-  background-color: #333;
+  gap: 8px;
+  padding: 8px;
+  background-color: var(--bg-deep);
   overflow: hidden;
 }
 
 .resizable-container {
   flex: 1;
-  padding: 4px;
-  background-color: #333;
+  padding: 8px;
+  background-color: var(--bg-deep);
   overflow: hidden;
 }
 
 /* 最大化容器 */
 .maximized-container {
   flex: 1;
-  background-color: #333;
+  background-color: var(--bg-deep);
   overflow: hidden;
 }
 
@@ -1634,13 +1645,14 @@ function getCustomPanelStyle(index: number) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+  border-radius: 12px;
 }
 
 /* 底部输入框样式 */
 .input-container {
-  padding: 12px 16px 16px;
-  background-color: #1a1a1a;
-  border-top: 1px solid #333;
+  padding: 14px 18px 18px;
+  background-color: var(--surface);
+  border-top: 1px solid var(--line);
   flex-shrink: 0;
 }
 
@@ -1650,18 +1662,19 @@ function getCustomPanelStyle(index: number) {
   flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 12px;
-  padding: 8px;
-  background-color: #2a2a2a;
-  border-radius: 12px;
+  padding: 10px;
+  background-color: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: 14px;
 }
 
 .image-preview-item {
   position: relative;
   width: 80px;
   height: 80px;
-  border-radius: 8px;
+  border-radius: 10px;
   overflow: hidden;
-  border: 1px solid #3a3a3a;
+  border: 1px solid var(--line-strong);
 }
 
 .preview-image {
@@ -1679,17 +1692,17 @@ function getCustomPanelStyle(index: number) {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background-color: rgba(0, 0, 0, 0.7);
+  background-color: rgba(31, 30, 27, 0.72);
   color: #fff;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .remove-image-btn:hover {
-  background-color: #ef4444;
+  background-color: var(--alert);
   transform: scale(1.1);
 }
 
@@ -1697,68 +1710,70 @@ function getCustomPanelStyle(index: number) {
   display: flex;
   align-items: flex-end;
   gap: 12px;
-  padding: 12px 16px;
-  background-color: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 16px;
-  transition: all 0.2s ease;
+  padding: 12px 14px 12px 18px;
+  background-color: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.18s ease;
 }
 
 .input-wrapper.focused {
-  border-color: #646cff;
-  box-shadow: 0 0 0 3px rgba(100, 108, 255, 0.1);
+  border-color: var(--clay);
+  box-shadow: 0 0 0 3px var(--clay-tint);
 }
 
 .message-input {
   flex: 1;
   min-height: 24px;
   max-height: 120px;
-  padding: 0;
+  padding: 6px 0;
   border: none;
   background: transparent;
-  color: #fff;
+  color: var(--ink);
   font-size: 15px;
   line-height: 1.5;
   resize: none;
   outline: none;
-  font-family: inherit;
+  font-family: var(--font-sans);
 }
 
 .message-input::placeholder {
-  color: #666;
+  color: var(--faint);
 }
 
 .send-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: none;
-  border-radius: 10px;
-  background-color: #3a3a3a;
-  color: #666;
+  border-radius: 12px;
+  background-color: var(--bg-deep);
+  color: var(--faint);
   cursor: not-allowed;
-  transition: all 0.2s ease;
+  transition: all 0.18s ease;
   flex-shrink: 0;
 }
 
 .send-btn.active {
-  background-color: #646cff;
-  color: #fff;
+  background-color: var(--clay);
+  color: #FBF7F2;
   cursor: pointer;
+  box-shadow: 0 2px 8px rgba(196, 95, 60, 0.28);
 }
 
 .send-btn.active:hover {
-  background-color: #5558e3;
+  background-color: var(--clay-deep);
   transform: scale(1.05);
 }
 
 .input-hint {
-  margin-top: 8px;
+  margin-top: 9px;
   font-size: 12px;
-  color: #555;
+  color: var(--faint);
   text-align: center;
 }
 
@@ -1774,19 +1789,19 @@ function getCustomPanelStyle(index: number) {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  border-radius: 6px;
+  padding: 7px 13px;
+  border-radius: 9px;
   font-size: 12px;
 }
 
 .result-item.success {
-  background-color: rgba(16, 185, 129, 0.2);
-  color: #10b981;
+  background-color: rgba(94, 135, 107, 0.16);
+  color: var(--ok);
 }
 
 .result-item.error {
-  background-color: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background-color: rgba(187, 79, 61, 0.14);
+  color: var(--alert);
 }
 
 .result-platform {
@@ -1794,7 +1809,7 @@ function getCustomPanelStyle(index: number) {
 }
 
 .result-message {
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 /* 发送中状态 */
@@ -1805,8 +1820,8 @@ function getCustomPanelStyle(index: number) {
 .loading-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid #666;
-  border-top-color: #fff;
+  border: 2px solid rgba(251, 247, 242, 0.5);
+  border-top-color: #FBF7F2;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

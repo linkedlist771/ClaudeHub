@@ -66,7 +66,8 @@ function handleOverlayClick(event: MouseEvent) {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.6);
+  background-color: rgba(31, 30, 27, 0.42);
+  backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -74,51 +75,53 @@ function handleOverlayClick(event: MouseEvent) {
 }
 
 .modal-content {
-  background-color: #2a2a2a;
-  border-radius: 12px;
-  width: 360px;
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  width: 380px;
   max-width: 90vw;
   overflow: hidden;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--shadow-lg);
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #3a3a3a;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--line);
 }
 
 .modal-header h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
 }
 
 .close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: transparent;
-  color: #888;
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .close-btn:hover {
-  background-color: #3a3a3a;
-  color: #fff;
+  background-color: var(--surface-alt);
+  color: var(--ink);
 }
 
 .platform-list {
-  padding: 8px;
+  padding: 10px;
 }
 
 .platform-item {
@@ -126,41 +129,41 @@ function handleOverlayClick(event: MouseEvent) {
   align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 12px 16px;
+  padding: 12px 14px;
   border: 1px solid transparent;
-  border-radius: 8px;
+  border-radius: 11px;
   background-color: transparent;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
   text-align: left;
 }
 
 .platform-item:hover {
-  background-color: #3a3a3a;
+  background-color: var(--surface-alt);
 }
 
 .platform-item.active {
-  background-color: #3a3a4a;
-  border-color: var(--platform-color);
+  background-color: var(--clay-tint);
+  border-color: var(--clay-soft);
 }
 
 .platform-indicator {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
 .platform-name {
   font-size: 14px;
-  font-weight: 500;
-  color: #fff;
+  font-weight: 600;
+  color: var(--ink);
   flex-shrink: 0;
 }
 
 .platform-url {
   font-size: 12px;
-  color: #666;
+  color: var(--faint);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

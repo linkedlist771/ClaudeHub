@@ -1,11 +1,50 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap');
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* ===== Anthropic / Claude design tokens ===== */
+  /* Canvas */
+  --bg: #F0EEE6;          /* warm ivory canvas */
+  --bg-deep: #E7E4D8;     /* gutters / deeper sections */
+  --surface: #FBFAF6;     /* card surface, warm white */
+  --surface-alt: #F4F1E8; /* subtle inset panels */
+
+  /* Ink */
+  --ink: #1F1E1B;         /* primary warm near-black */
+  --ink-2: #45433C;       /* secondary text */
+  --muted: #7C7A70;       /* tertiary / muted */
+  --faint: #A8A599;       /* placeholder / hint */
+
+  /* Lines */
+  --line: #E2DDCF;        /* hairline border */
+  --line-strong: #D2CCBA; /* stronger divider */
+
+  /* Clay (Claude terracotta) */
+  --clay: #C45F3C;        /* primary accent */
+  --clay-deep: #A94F30;   /* hover / pressed */
+  --clay-soft: #E4B59E;   /* light edge */
+  --clay-tint: rgba(196, 95, 60, 0.10);
+  --clay-tint-2: rgba(196, 95, 60, 0.18);
+
+  /* Companions */
+  --kraft: #C99A6A;       /* secondary warm accent */
+  --ok: #5E876B;          /* sage = healthy */
+  --warn: #BC8E3C;        /* ochre = mid */
+  --alert: #BB4F3D;       /* clay-red = high / limited */
+
+  --shadow-sm: 0 1px 2px rgba(40, 33, 22, 0.05);
+  --shadow-md: 0 4px 16px rgba(40, 33, 22, 0.08);
+  --shadow-lg: 0 18px 48px rgba(40, 33, 22, 0.16);
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", system-ui, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-serif: "Newsreader", "Iowan Old Style", "Apple Garamond", Georgia, "Times New Roman", serif;
+
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
 
-  color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #1a1a1a;
+  color-scheme: light;
+  color: var(--ink);
+  background-color: var(--bg);
 
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -33,4 +72,24 @@ html, body {
   height: 100%;
   margin: 0;
   padding: 0;
+}
+
+/* thin warm scrollbars to match the ivory chrome */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--kraft);
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }

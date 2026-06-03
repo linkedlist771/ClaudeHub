@@ -56,7 +56,7 @@ export const SITE_CONFIGS: SiteConfig[] = [
     domains: ['claude.ai'],
     name: 'Claude',
     url: 'https://claude.ai',
-    color: '#d97706',
+    color: '#C45F3C',
     textareaSelectors: [
       'div[contenteditable="true"]',
       'textarea',

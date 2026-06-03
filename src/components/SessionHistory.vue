@@ -157,14 +157,14 @@ function handleKeydown(event: KeyboardEvent) {
   position: fixed;
   top: 0;
   left: 0;
-  width: 320px;
+  width: 332px;
   height: 100vh;
-  background-color: #1e1e1e;
-  border-right: 1px solid #333;
+  background-color: var(--surface);
+  border-right: 1px solid var(--line);
   z-index: 1000;
   display: flex;
   flex-direction: column;
-  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-lg);
 }
 
 .overlay {
@@ -173,7 +173,8 @@ function handleKeydown(event: KeyboardEvent) {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background-color: rgba(31, 30, 27, 0.38);
+  backdrop-filter: blur(2px);
   z-index: 999;
 }
 
@@ -181,40 +182,41 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 20px;
-  border-bottom: 1px solid #333;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--line);
 }
 
 .panel-header h3 {
   margin: 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: #fff;
+  font-family: var(--font-serif);
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--ink);
 }
 
 .close-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 30px;
+  height: 30px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: 8px;
   background-color: transparent;
-  color: #888;
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .close-btn:hover {
-  background-color: #333;
-  color: #fff;
+  background-color: var(--surface-alt);
+  color: var(--ink);
 }
 
 .panel-actions {
   padding: 16px;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--line);
 }
 
 .save-btn {
@@ -223,20 +225,21 @@ function handleKeydown(event: KeyboardEvent) {
   justify-content: center;
   gap: 8px;
   width: 100%;
-  padding: 10px 16px;
-  border: 1px dashed #555;
-  border-radius: 8px;
-  background-color: transparent;
-  color: #aaa;
+  padding: 11px 16px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 11px;
+  background-color: var(--surface-alt);
+  color: var(--ink-2);
   font-size: 14px;
+  font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .save-btn:hover {
-  border-color: #646cff;
-  color: #646cff;
-  background-color: rgba(100, 108, 255, 0.1);
+  border-color: var(--clay-soft);
+  color: var(--clay-deep);
+  background-color: var(--clay-tint);
 }
 
 .session-list {
@@ -247,8 +250,8 @@ function handleKeydown(event: KeyboardEvent) {
 
 .empty-state {
   text-align: center;
-  padding: 40px 20px;
-  color: #666;
+  padding: 48px 20px;
+  color: var(--muted);
 }
 
 .empty-state p {
@@ -258,21 +261,21 @@ function handleKeydown(event: KeyboardEvent) {
 .empty-state .hint {
   font-size: 12px;
   margin-top: 8px;
-  color: #555;
+  color: var(--faint);
 }
 
 .session-item {
   display: flex;
   align-items: center;
   padding: 12px;
-  border-radius: 8px;
+  border-radius: 11px;
   margin-bottom: 4px;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .session-item:hover {
-  background-color: #2a2a2a;
+  background-color: var(--surface-alt);
 }
 
 .session-info {
@@ -282,8 +285,8 @@ function handleKeydown(event: KeyboardEvent) {
 
 .session-name {
   font-size: 14px;
-  font-weight: 500;
-  color: #fff;
+  font-weight: 600;
+  color: var(--ink);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -292,11 +295,11 @@ function handleKeydown(event: KeyboardEvent) {
 
 .name-input {
   width: 100%;
-  padding: 4px 8px;
-  border: 1px solid #646cff;
-  border-radius: 4px;
-  background-color: #2a2a2a;
-  color: #fff;
+  padding: 5px 9px;
+  border: 1px solid var(--clay);
+  border-radius: 7px;
+  background-color: var(--surface);
+  color: var(--ink);
   font-size: 14px;
   outline: none;
 }
@@ -306,7 +309,7 @@ function handleKeydown(event: KeyboardEvent) {
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #666;
+  color: var(--muted);
 }
 
 .session-platforms {
@@ -330,25 +333,25 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
   border: none;
-  border-radius: 4px;
+  border-radius: 7px;
   background-color: transparent;
-  color: #888;
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .action-btn:hover {
-  background-color: #3a3a3a;
-  color: #fff;
+  background-color: var(--surface);
+  color: var(--ink);
 }
 
 .action-btn.delete:hover {
-  background-color: rgba(239, 68, 68, 0.2);
-  color: #ef4444;
+  background-color: rgba(187, 79, 61, 0.12);
+  color: var(--alert);
 }
 
 /* 动画 */

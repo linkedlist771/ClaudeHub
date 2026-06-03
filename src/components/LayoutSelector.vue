@@ -229,14 +229,15 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 16px;
-  background-color: #1a1a1a;
-  border-bottom: 1px solid #333;
+  padding: 6px 10px;
+  background-color: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: 11px;
 }
 
 .selector-label {
   font-size: 13px;
-  color: #888;
+  color: var(--muted);
   white-space: nowrap;
 }
 
@@ -249,7 +250,7 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
 .separator {
   width: 1px;
   height: 20px;
-  background-color: #444;
+  background-color: var(--line-strong);
   margin: 0 4px;
 }
 
@@ -257,59 +258,59 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 28px;
+  width: 38px;
+  height: 30px;
   padding: 4px;
-  border: 1px solid #444;
-  border-radius: 4px;
-  background-color: #2a2a2a;
-  color: #666;
+  border: 1px solid var(--line-strong);
+  border-radius: 8px;
+  background-color: var(--surface);
+  color: var(--muted);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.18s;
 }
 
 .layout-btn:hover {
-  border-color: #555;
-  color: #999;
-  background-color: #333;
+  border-color: var(--kraft);
+  color: var(--ink-2);
+  background-color: var(--surface-alt);
 }
 
 .layout-btn.preset.active {
-  border-color: #646cff;
-  color: #646cff;
-  background-color: #2a2a3a;
+  border-color: var(--clay);
+  color: var(--clay);
+  background-color: var(--clay-tint);
 }
 
 /* 自定义布局使用不同颜色 */
 .layout-btn.custom {
-  border-color: #4a4a3a;
-  color: #d4a574;
+  border-color: var(--line-strong);
+  color: var(--kraft);
 }
 
 .layout-btn.custom:hover {
-  border-color: #6a6a4a;
-  color: #e4b584;
-  background-color: #3a3a2a;
+  border-color: var(--kraft);
+  color: var(--kraft);
+  background-color: rgba(201, 154, 106, 0.1);
 }
 
 .layout-btn.custom.active {
-  border-color: #d4a574;
-  color: #d4a574;
-  background-color: #3a3a2a;
-  box-shadow: 0 0 0 2px rgba(212, 165, 116, 0.2);
+  border-color: var(--kraft);
+  color: var(--kraft);
+  background-color: rgba(201, 154, 106, 0.12);
+  box-shadow: 0 0 0 2px rgba(201, 154, 106, 0.18);
 }
 
 /* 添加按钮 */
 .layout-btn.add-btn {
   border-style: dashed;
-  border-color: #555;
-  color: #666;
+  border-color: var(--line-strong);
+  color: var(--muted);
 }
 
 .layout-btn.add-btn:hover {
-  border-color: #888;
-  color: #aaa;
-  background-color: #333;
+  border-color: var(--kraft);
+  color: var(--ink-2);
+  background-color: var(--surface-alt);
 }
 
 /* 右键菜单 */
@@ -324,13 +325,13 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
 
 .context-menu {
   position: fixed;
-  background-color: #2a2a2a;
-  border: 1px solid #3a3a3a;
-  border-radius: 6px;
-  padding: 4px;
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 5px;
   z-index: 1000;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  min-width: 120px;
+  box-shadow: var(--shadow-lg);
+  min-width: 128px;
 }
 
 .context-menu-item {
@@ -338,25 +339,25 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 12px;
+  padding: 9px 12px;
   border: none;
-  border-radius: 4px;
+  border-radius: 7px;
   background: none;
-  color: #ccc;
+  color: var(--ink-2);
   font-size: 13px;
   cursor: pointer;
   text-align: left;
 }
 
 .context-menu-item:hover {
-  background-color: #3a3a3a;
+  background-color: var(--surface-alt);
 }
 
 .context-menu-item.delete {
-  color: #ef4444;
+  color: var(--alert);
 }
 
 .context-menu-item.delete:hover {
-  background-color: rgba(239, 68, 68, 0.1);
+  background-color: rgba(187, 79, 61, 0.1);
 }
 </style>
