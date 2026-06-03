@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import WebViewPanel from './components/WebViewPanel.vue'
 import LayoutSelector, { type LayoutType } from './components/LayoutSelector.vue'
 import PlatformSelector from './components/PlatformSelector.vue'
@@ -185,6 +185,135 @@ async function handleImportAccounts() {
     alert('导入失败：' + (res?.error || '未知错误'))
   }
 }
+
+// ---------- 额度刷新 ----------
+// 主进程直接请求会被 Cloudflare 403，所以在「各账号已登录的隐藏 webview」内
+// executeJavaScript 发 fetch —— 真浏览器上下文、已过 Cloudflare、cookie 自动带上。
+const USAGE_SCRIPT = `
+  (async function() {
+    try {
+      const h = { 'anthropic-client-platform': 'web_claude_ai', accept: '*/*' };
+      const orgsRes = await fetch('/api/organizations', { credentials: 'include', headers: h });
+      if (!orgsRes.ok) return { ok: false, stage: 'orgs', status: orgsRes.status };
+      const orgs = await orgsRes.json();
+      const list = Array.isArray(orgs) ? orgs : [];
+      const org = list.find(o => Array.isArray(o.capabilities) && o.capabilities.includes('chat')) || list[0];
+      const orgId = org && org.uuid;
+      if (!orgId) return { ok: false, stage: 'orgs', error: '未找到组织（可能未登录）' };
+      const usageRes = await fetch('/api/organizations/' + orgId + '/usage', { credentials: 'include', headers: h });
+      if (!usageRes.ok) return { ok: false, stage: 'usage', status: usageRes.status };
+      const data = await usageRes.json();
+      return { ok: true, data: data };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  })()
+`
+
+const usageReady: Record<string, boolean> = {}
+const wiredProbes = new Set<string>()
+
+function usageWebviewId(accountId: string) {
+  return `usage-webview-${accountId}`
+}
+
+// 给隐藏 webview 绑定 dom-ready（就绪后立即取一次）
+function setupUsageWebviews() {
+  for (const acc of claudeAccounts.value) {
+    if (wiredProbes.has(acc.id)) continue
+    const el = document.getElementById(usageWebviewId(acc.id)) as any
+    if (!el) continue
+    wiredProbes.add(acc.id)
+    el.addEventListener('dom-ready', () => {
+      usageReady[acc.id] = true
+      refreshUsage(acc.id)
+    })
+    el.addEventListener('destroyed', () => {
+      usageReady[acc.id] = false
+      wiredProbes.delete(acc.id)
+    })
+  }
+}
+
+function applyUsage(acc: ClaudeAccount, data: any) {
+  const five = data?.five_hour
+  const seven = data?.seven_day
+  const fivePct = five?.utilization
+  const sevenPct = seven?.utilization
+  acc.usage = {
+    fiveHourPercent: fivePct,
+    fiveHourResetsAt: five?.resets_at,
+    sevenDayPercent: sevenPct,
+    sevenDayResetsAt: seven?.resets_at,
+    limited: (fivePct ?? 0) >= 100 || (sevenPct ?? 0) >= 100,
+    loading: false,
+    error: undefined,
+    updatedAt: Date.now()
+  }
+}
+
+// 刷新单个账号额度
+async function refreshUsage(accountId: string) {
+  const acc = claudeAccounts.value.find(a => a.id === accountId)
+  if (!acc) return
+  const el = document.getElementById(usageWebviewId(accountId)) as any
+
+  if (!el || !usageReady[accountId] || !el.executeJavaScript) {
+    // webview 尚未就绪，标记加载中，等 dom-ready 再取
+    acc.usage = { ...(acc.usage || {}), loading: true }
+    return
+  }
+
+  acc.usage = { ...(acc.usage || {}), loading: true, error: undefined }
+  try {
+    const res = await el.executeJavaScript(USAGE_SCRIPT)
+    if (res?.ok && res.data) {
+      applyUsage(acc, res.data)
+    } else {
+      const reason = res?.error || `获取失败${res?.status ? ' (' + res.status + ')' : ''}`
+      acc.usage = { ...(acc.usage || {}), loading: false, error: reason }
+    }
+  } catch (e: any) {
+    acc.usage = { ...(acc.usage || {}), loading: false, error: e?.message || '获取失败' }
+  }
+  saveAccounts()
+}
+
+// 刷新所有账号额度（并发）
+async function refreshAllUsage() {
+  setupUsageWebviews()
+  await Promise.all(claudeAccounts.value.map(a => refreshUsage(a.id)))
+}
+
+// 每 5 秒自动刷新（仅在账号主页时运行）
+const USAGE_REFRESH_MS = 5000
+let usageTimer: ReturnType<typeof setInterval> | null = null
+
+function startUsageAutoRefresh() {
+  if (usageTimer) return
+  nextTick(setupUsageWebviews)
+  usageTimer = setInterval(() => {
+    if (viewMode.value === 'dashboard') {
+      setupUsageWebviews()
+      refreshAllUsage()
+    }
+  }, USAGE_REFRESH_MS)
+}
+
+function stopUsageAutoRefresh() {
+  if (usageTimer) {
+    clearInterval(usageTimer)
+    usageTimer = null
+  }
+}
+
+// 进入/离开主页时开关自动刷新
+watch(viewMode, (mode) => {
+  if (mode === 'dashboard') nextTick(startUsageAutoRefresh)
+  else stopUsageAutoRefresh()
+}, { immediate: true })
+
+onUnmounted(stopUsageAutoRefresh)
 
 function handleRenameAccount(id: string, name: string) {
   const acct = claudeAccounts.value.find(a => a.id === id)
@@ -1105,7 +1234,21 @@ function getCustomPanelStyle(index: number) {
       @delete="handleDeleteAccount"
       @export="handleExportAccounts"
       @import="handleImportAccounts"
+      @refresh="refreshUsage"
+      @refresh-all="refreshAllUsage"
     />
+
+    <!-- 额度探测用的隐藏 webview（离屏，每账号一个；在真浏览器上下文内 fetch 用量接口） -->
+    <div v-if="viewMode === 'dashboard'" class="usage-probes" aria-hidden="true">
+      <webview
+        v-for="acc in claudeAccounts"
+        :key="`probe-${acc.id}`"
+        :id="`usage-webview-${acc.id}`"
+        src="https://claude.ai/"
+        :partition="`persist:claude-${acc.id}`"
+        class="usage-probe"
+      ></webview>
+    </div>
 
     <!-- 最大化面板 -->
     <div v-else-if="isMaximized && maximizedPanelIndex !== null && visiblePlatforms[maximizedPanelIndex]" class="maximized-container">
@@ -1209,7 +1352,7 @@ function getCustomPanelStyle(index: number) {
         <textarea
           v-model="inputMessage"
           class="message-input"
-          placeholder="输入消息，可粘贴图片，同时发送给所有 AI..."
+          placeholder="输入消息，可粘贴图片，同时发送给所有可见的 Claude 账号..."
           rows="1"
           :disabled="isSending"
           @focus="isInputFocused = true"
@@ -1244,6 +1387,24 @@ function getCustomPanelStyle(index: number) {
   flex-direction: column;
   background-color: #1a1a1a;
   overflow: hidden;
+}
+
+/* 额度探测隐藏 webview：离屏但保持渲染/加载（display:none 会导致不加载） */
+.usage-probes {
+  position: absolute;
+  left: -10000px;
+  top: 0;
+  width: 500px;
+  height: 500px;
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.usage-probe {
+  width: 500px;
+  height: 500px;
+  border: none;
 }
 
 .toolbar {

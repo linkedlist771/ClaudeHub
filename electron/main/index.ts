@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, session, dialog } from 'electron'
+import { app, BrowserWindow, shell, ipcMain, session, dialog, net } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -45,7 +45,7 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
 async function createWindow() {
   win = new BrowserWindow({
-    title: 'ParallelChat',
+    title: 'ClaudeHub',
     width: 1600,
     height: 1000,
     icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
@@ -65,7 +65,7 @@ async function createWindow() {
   if (VITE_DEV_SERVER_URL) { // #298
     win.loadURL(VITE_DEV_SERVER_URL)
     // Open devTool if the app is not packaged
-    // win.webContents.openDevTools()
+    win.webContents.openDevTools()
   } else {
     win.loadFile(indexHtml)
   }
@@ -127,7 +127,7 @@ ipcMain.handle('export-accounts', async (_, accounts: { id: string; name: string
       const cookies = await ses.cookies.get({})
       out.push({ id: acc.id, name: acc.name, cookies })
     }
-    const data = JSON.stringify({ app: 'ParallelChat', version: 1, exportedAt: Date.now(), accounts: out }, null, 2)
+    const data = JSON.stringify({ app: 'ClaudeHub', version: 1, exportedAt: Date.now(), accounts: out }, null, 2)
 
     const { canceled, filePath } = await dialog.showSaveDialog({
       title: '导出 Claude 账号凭证',
@@ -176,6 +176,65 @@ ipcMain.handle('import-accounts', async () => {
     }
     // 回传账号元数据，渲染进程据此合并账号列表
     return { ok: true, count: accounts.length, accounts: accounts.map((a: any) => ({ id: a.id, name: a.name })) }
+  } catch (e: any) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+})
+
+// ---------- Claude 额度（用量）查询 ----------
+// 直接用该账号 partition 的 session 发请求，cookie（含 httpOnly 的 sessionKey
+// 与 cf_clearance）自动带上，同机同 IP、UA 一致，无需 webview / Playwright。
+
+function netJson(ses: Electron.Session, url: string): Promise<{ ok: boolean; status?: number; data?: any; error?: string; body?: string }> {
+  return new Promise((resolve) => {
+    const req = net.request({ method: 'GET', url, session: ses, useSessionCookies: true })
+    req.setHeader('anthropic-client-platform', 'web_claude_ai')
+    req.setHeader('accept', '*/*')
+    let body = ''
+    req.on('response', (res) => {
+      res.on('data', (chunk) => { body += chunk.toString() })
+      res.on('end', () => {
+        const status = res.statusCode
+        if (status === 200) {
+          try {
+            resolve({ ok: true, status, data: JSON.parse(body) })
+          } catch {
+            resolve({ ok: false, status, error: 'parse', body: body.slice(0, 200) })
+          }
+        } else {
+          resolve({ ok: false, status, body: body.slice(0, 200) })
+        }
+      })
+    })
+    req.on('error', (e) => resolve({ ok: false, error: e.message }))
+    req.end()
+  })
+}
+
+ipcMain.handle('fetch-usage', async (_, accountId: string) => {
+  try {
+    const ses = session.fromPartition(`persist:claude-${accountId}`)
+
+    // 1. 拿到该账号的 organization uuid
+    const orgs = await netJson(ses, 'https://claude.ai/api/organizations')
+    if (!orgs.ok) {
+      return { ok: false, stage: 'orgs', status: orgs.status, error: orgs.error || `HTTP ${orgs.status}` }
+    }
+    const list = Array.isArray(orgs.data) ? orgs.data : []
+    const org =
+      list.find((o: any) => Array.isArray(o?.capabilities) && o.capabilities.includes('chat')) ||
+      list[0]
+    const orgId = org?.uuid
+    if (!orgId) {
+      return { ok: false, stage: 'orgs', error: '未找到 organization（可能未登录）' }
+    }
+
+    // 2. 拉用量
+    const usage = await netJson(ses, `https://claude.ai/api/organizations/${orgId}/usage`)
+    if (!usage.ok) {
+      return { ok: false, stage: 'usage', status: usage.status, error: usage.error || `HTTP ${usage.status}` }
+    }
+    return { ok: true, data: usage.data }
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) }
   }

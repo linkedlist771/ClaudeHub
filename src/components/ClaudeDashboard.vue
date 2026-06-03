@@ -1,17 +1,21 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
+export interface ClaudeUsage {
+  fiveHourPercent?: number     // 5 小时窗口已用百分比
+  fiveHourResetsAt?: string    // 5 小时窗口重置时间（ISO）
+  sevenDayPercent?: number     // 7 天窗口已用百分比
+  sevenDayResetsAt?: string    // 7 天窗口重置时间（ISO）
+  limited?: boolean            // 是否已受限（任一窗口 >= 100%）
+  loading?: boolean            // 正在刷新
+  error?: string               // 刷新失败原因
+  updatedAt?: number           // 上次更新时间戳
+}
+
 export interface ClaudeAccount {
   id: string
   name: string
-  // 额度信息（第 2 步接入用量探测后填充，目前为占位）
-  usage?: {
-    sessionPercent?: number      // 当前会话已用百分比
-    sessionResetText?: string    // 当前会话重置文案
-    weeklyPercent?: number       // 周用量已用百分比
-    weeklyResetText?: string     // 周用量重置文案
-    updatedAt?: number           // 上次更新时间戳
-  }
+  usage?: ClaudeUsage
 }
 
 defineProps<{
@@ -26,6 +30,8 @@ const emit = defineEmits<{
   (e: 'delete', id: string): void
   (e: 'export'): void
   (e: 'import'): void
+  (e: 'refresh', id: string): void
+  (e: 'refresh-all'): void
 }>()
 
 const newName = ref('')
@@ -66,14 +72,65 @@ function usageColor(percent?: number): string {
   if (percent >= 70) return '#f59e0b'
   return '#10b981'
 }
+
+// 百分比展示（四舍五入）
+function pct(p?: number): string {
+  return p == null ? '—' : `${Math.round(p)}%`
+}
+
+// 5 小时窗口：相对时间「X小时Y分后重置」
+function fiveHourReset(iso?: string): string {
+  if (!iso) return ''
+  const t = new Date(iso).getTime()
+  if (isNaN(t)) return ''
+  const diff = t - Date.now()
+  if (diff <= 0) return '已重置'
+  const mins = Math.round(diff / 60000)
+  if (mins < 60) return `${mins} 分钟后重置`
+  const h = Math.floor(mins / 60)
+  const m = mins % 60
+  return m ? `${h} 小时 ${m} 分后重置` : `${h} 小时后重置`
+}
+
+// 7 天窗口：显示本地日期时间「重置 周五 23:00」
+function sevenDayReset(iso?: string): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const week = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'][d.getDay()]
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `重置 ${week} ${hh}:${mm}`
+}
+
+// 上次更新相对时间
+function updatedText(ts?: number): string {
+  if (!ts) return ''
+  const diff = Date.now() - ts
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return '刚刚更新'
+  if (mins < 60) return `${mins} 分钟前更新`
+  return `${Math.floor(mins / 60)} 小时前更新`
+}
 </script>
 
 <template>
   <div class="dashboard">
     <div class="dashboard-header">
       <div class="title-row">
-        <h2 class="dashboard-title">Claude 账号</h2>
+        <div class="brand">
+          <h2 class="dashboard-title">ClaudeHub</h2>
+          <span class="dashboard-subtitle">多账号管理</span>
+        </div>
         <div class="header-actions">
+          <button
+            class="ghost-btn"
+            :disabled="accounts.length === 0"
+            @click="emit('refresh-all')"
+            title="刷新所有账号额度"
+          >
+            ⟳ 刷新额度
+          </button>
           <button class="ghost-btn" @click="emit('import')" title="从 JSON 文件导入账号凭证">
             导入
           </button>
@@ -128,30 +185,58 @@ function usageColor(percent?: number): string {
           </template>
           <template v-else>
             <span class="card-name">{{ account.name }}</span>
+            <span v-if="account.usage?.limited" class="limit-badge">受限</span>
+            <button
+              class="icon-btn"
+              :class="{ spinning: account.usage?.loading }"
+              @click.stop="emit('refresh', account.id)"
+              title="刷新额度"
+            >⟳</button>
             <button class="icon-btn" @click.stop="startEdit(account)" title="重命名">✎</button>
             <button class="icon-btn danger" @click.stop="handleDelete(account)" title="删除">🗑</button>
           </template>
         </div>
 
-        <!-- 额度区（第 2 步接入真实数据） -->
+        <!-- 额度区：5 小时窗口 + 7 天窗口 -->
         <div class="usage">
+          <!-- 5 小时 -->
           <div class="usage-row">
-            <span class="usage-label">当前会话</span>
-            <span class="usage-value">
-              {{ account.usage?.sessionPercent != null ? account.usage.sessionPercent + '% used' : '—' }}
-            </span>
+            <span class="usage-label">当前会话 (5h)</span>
+            <span class="usage-value">{{ pct(account.usage?.fiveHourPercent) }}</span>
           </div>
           <div class="bar">
             <div
               class="bar-fill"
               :style="{
-                width: (account.usage?.sessionPercent ?? 0) + '%',
-                background: usageColor(account.usage?.sessionPercent)
+                width: Math.min(account.usage?.fiveHourPercent ?? 0, 100) + '%',
+                background: usageColor(account.usage?.fiveHourPercent)
               }"
             ></div>
           </div>
-          <div class="usage-reset">
-            {{ account.usage?.sessionResetText || '额度数据待接入' }}
+          <div class="usage-reset">{{ fiveHourReset(account.usage?.fiveHourResetsAt) || '—' }}</div>
+
+          <!-- 7 天 -->
+          <div class="usage-row" style="margin-top: 8px">
+            <span class="usage-label">每周 (7d)</span>
+            <span class="usage-value">{{ pct(account.usage?.sevenDayPercent) }}</span>
+          </div>
+          <div class="bar">
+            <div
+              class="bar-fill"
+              :style="{
+                width: Math.min(account.usage?.sevenDayPercent ?? 0, 100) + '%',
+                background: usageColor(account.usage?.sevenDayPercent)
+              }"
+            ></div>
+          </div>
+          <div class="usage-reset">{{ sevenDayReset(account.usage?.sevenDayResetsAt) || '—' }}</div>
+
+          <!-- 状态行 -->
+          <div class="usage-meta">
+            <span v-if="account.usage?.error" class="usage-err">⚠ {{ account.usage.error }}</span>
+            <span v-else-if="account.usage?.loading" class="usage-dim">刷新中…</span>
+            <span v-else-if="account.usage?.updatedAt" class="usage-dim">{{ updatedText(account.usage.updatedAt) }}</span>
+            <span v-else class="usage-dim">点「刷新额度」获取</span>
           </div>
         </div>
 
@@ -184,11 +269,22 @@ function usageColor(percent?: number): string {
   margin-bottom: 16px;
 }
 
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
 .dashboard-title {
   margin: 0;
   font-size: 20px;
-  font-weight: 600;
+  font-weight: 700;
   color: #fff;
+}
+
+.dashboard-subtitle {
+  font-size: 13px;
+  color: #888;
 }
 
 .header-actions {
@@ -389,6 +485,38 @@ function usageColor(percent?: number): string {
 .usage-reset {
   font-size: 11px;
   color: #666;
+}
+
+.usage-meta {
+  margin-top: 8px;
+  min-height: 14px;
+}
+
+.usage-dim {
+  font-size: 11px;
+  color: #666;
+}
+
+.usage-err {
+  font-size: 11px;
+  color: #ef4444;
+}
+
+.limit-badge {
+  padding: 2px 7px;
+  border-radius: 5px;
+  background-color: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.icon-btn.spinning {
+  animation: omc-spin 0.8s linear infinite;
+}
+
+@keyframes omc-spin {
+  to { transform: rotate(360deg); }
 }
 
 .enter-btn {
