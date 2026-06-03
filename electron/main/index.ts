@@ -34,6 +34,15 @@ if (os.release().startsWith('6.1')) app.disableHardwareAcceleration()
 // Set application name for Windows 10+ notifications
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
+// 开发模式（vite dev server）下使用独立的应用名 / userData 目录，
+// 避免与已安装并运行中的正式版 ClaudeHub 抢「单实例锁」，
+// 否则 `npm run dev` 启动的开发版会因拿不到锁而立即退出（窗口开不出来）。
+// 仅 dev 生效；打包后的正式版没有 VITE_DEV_SERVER_URL，行为不变。
+if (process.env.VITE_DEV_SERVER_URL) {
+  app.setName('claudehub-dev')
+  app.setPath('userData', path.join(app.getPath('appData'), 'claudehub-dev'))
+}
+
 if (!app.requestSingleInstanceLock()) {
   app.quit()
   process.exit(0)

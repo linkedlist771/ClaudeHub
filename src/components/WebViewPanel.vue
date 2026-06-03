@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
+// claude.ai 对话页注入「导出 Markdown」按钮的脚本（原始字符串，注入进 webview 主世界）
+import claudeExportInject from '../utils/claudeExportInject.js?raw'
 
 export interface Platform {
   id: string
@@ -68,12 +70,28 @@ watch(() => props.platform?.id, () => {
   setTimeout(setupWebviewListeners, 100)
 })
 
+// 是否为 Claude 站点（仅 claude.ai 注入导出按钮）
+function isClaudeWebview() {
+  return !!props.platform && (
+    props.platform.url.includes('claude.ai') || props.platform.id.startsWith('claude')
+  )
+}
+
+// 向 claude.ai 注入导出按钮脚本（脚本内部幂等，可重复调用）
+function injectExportButton(webview: any) {
+  if (!isClaudeWebview() || !webview?.executeJavaScript) return
+  webview.executeJavaScript(claudeExportInject).catch(() => {})
+}
+
 function setupWebviewListeners() {
   if (!props.platform) return
   const webview = document.getElementById(webviewId.value) as any
-  if (webview) {
+  if (webview && !webview.__chWired) {
+    webview.__chWired = true
     webview.addEventListener('did-finish-load', () => {
       loading.value = false
+      // 整页加载/刷新后页面 JS 世界被重置，需重新注入
+      injectExportButton(webview)
     })
     webview.addEventListener('did-fail-load', () => {
       loading.value = false
