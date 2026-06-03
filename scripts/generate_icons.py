@@ -1,168 +1,227 @@
 #!/usr/bin/env python3
 """
-Generate app icons for ParallelChat
-Creates PNG icons for all platforms and ICO for Windows
+Generate ClaudeHub app icons.
+
+The icon is *drawn as SVG* (a Claude-flavoured coral "sunburst hub"): a warm
+terracotta squircle in Claude's signature coral palette, with a cream
+Anthropic-style radial burst whose central disc + 12 rays read as a hub
+radiating outward — i.e. one ClaudeHub feeding many Claude sessions.
+
+The SVG is then rasterised with cairosvg into every PNG size the app needs,
+plus a multi-resolution Windows .ico and a macOS .icns.
+
+Run:  python3 scripts/generate_icons.py
 """
 
+import math
 import os
-from PIL import Image, ImageDraw
+import subprocess
+import sys
 
-# Icon sizes needed
-SIZES = [16, 32, 48, 64, 128, 256, 512, 1024]
+# ---------------------------------------------------------------------------
+# Make cairosvg find Homebrew's libcairo on macOS.
+# /usr/bin/python3 is SIP-protected, so DYLD_* env vars are stripped; point
+# ctypes' find_library straight at the dylib instead.
+# ---------------------------------------------------------------------------
+import ctypes.util as _ctu
 
-def create_icon(size):
-    """Create the ParallelChat icon at specified size"""
-    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    
-    # Scale factor
-    s = size / 512
-    
-    # Background gradient (simplified as solid purple)
-    # Draw rounded rectangle background
-    margin = int(20 * s)
-    corner_radius = int(100 * s)
-    
-    # Background color (gradient approximation)
-    bg_color = (106, 90, 205)  # Purple blend
-    
-    # Draw rounded rectangle
-    draw.rounded_rectangle(
-        [0, 0, size-1, size-1],
-        radius=corner_radius,
-        fill=bg_color
+_BREW_CAIRO = "/opt/homebrew/lib/libcairo.2.dylib"
+if os.path.exists(_BREW_CAIRO):
+    _orig_find = _ctu.find_library
+
+    def _find(name):  # noqa: ANN001
+        if name and "cairo" in name.lower():
+            return _BREW_CAIRO
+        return _orig_find(name)
+
+    _ctu.find_library = _find
+
+import cairosvg  # noqa: E402
+from PIL import Image  # noqa: E402
+
+# ---------------------------------------------------------------------------
+# Design constants (master canvas is 1024x1024)
+# ---------------------------------------------------------------------------
+SIZE = 1024
+CX = CY = SIZE / 2.0
+
+# Claude / Anthropic coral palette
+CORAL_LIGHT = "#E8946F"   # top-left, lifted highlight
+CORAL_MID = "#D97757"     # Claude's signature coral
+CORAL_DEEP = "#BD5836"    # bottom-right, deep terracotta
+CREAM_TOP = "#FBF8F1"     # Anthropic ivory
+CREAM_BOT = "#EFE7D7"     # warm cream shadow side
+
+CORNER_R = 230            # squircle-ish corner radius
+
+N_RAYS = 12
+R_DISC = 100              # central hub disc radius
+R_IN = 88                # ray base radius (tucked under the disc edge)
+R_OUT = 338              # ray tip radius
+RAY_HALF_DEG = 7.0       # half-width of each ray at its base
+R_CORE = 46              # lighter "core" highlight inside the hub
+
+# PNG sizes the project ships
+PNG_SIZES = [16, 32, 48, 64, 128, 256, 512, 1024]
+ICO_SIZES = [16, 32, 48, 64, 128, 256]
+
+# macOS iconset mapping: filename -> rendered pixel size
+ICNS_MAP = {
+    "icon_16x16.png": 16,
+    "icon_16x16@2x.png": 32,
+    "icon_32x32.png": 32,
+    "icon_32x32@2x.png": 64,
+    "icon_128x128.png": 128,
+    "icon_128x128@2x.png": 256,
+    "icon_256x256.png": 256,
+    "icon_256x256@2x.png": 512,
+    "icon_512x512.png": 512,
+    "icon_512x512@2x.png": 1024,
+}
+
+
+def _ray_path(theta: float) -> str:
+    """Triangular ray: two base points at R_IN, tapering to a tip at R_OUT."""
+    a = math.radians(RAY_HALF_DEG)
+    tip = (CX + R_OUT * math.cos(theta), CY + R_OUT * math.sin(theta))
+    bl = (CX + R_IN * math.cos(theta - a), CY + R_IN * math.sin(theta - a))
+    br = (CX + R_IN * math.cos(theta + a), CY + R_IN * math.sin(theta + a))
+    return (
+        f"M{bl[0]:.2f},{bl[1]:.2f} "
+        f"L{tip[0]:.2f},{tip[1]:.2f} "
+        f"L{br[0]:.2f},{br[1]:.2f} Z"
     )
-    
-    # Panel positions and colors
-    panels = [
-        # (x, y, color) - ChatGPT green, Gemini blue, Claude orange, Grok blue
-        (60, 60, (16, 163, 127)),      # Top-left - ChatGPT green
-        (272, 60, (66, 133, 244)),     # Top-right - Gemini blue
-        (60, 272, (217, 119, 6)),      # Bottom-left - Claude orange
-        (272, 272, (29, 161, 242)),    # Bottom-right - Grok blue
-    ]
-    
-    panel_size = int(180 * s)
-    panel_radius = int(20 * s)
-    
-    for px, py, color in panels:
-        x = int(px * s)
-        y = int(py * s)
-        
-        # Draw panel
-        draw.rounded_rectangle(
-            [x, y, x + panel_size, y + panel_size],
-            radius=panel_radius,
-            fill=color
-        )
-        
-        # Draw avatar circle
-        avatar_r = int(25 * s)
-        avatar_cx = x + panel_size // 2
-        avatar_cy = y + int(60 * s)
-        draw.ellipse(
-            [avatar_cx - avatar_r, avatar_cy - avatar_r, 
-             avatar_cx + avatar_r, avatar_cy + avatar_r],
-            fill=(255, 255, 255, 230)
-        )
-        
-        # Draw text lines
-        line_h = int(12 * s)
-        line_y = y + int(100 * s)
-        line_x = x + int(40 * s)
-        
-        # First line
-        draw.rounded_rectangle(
-            [line_x, line_y, line_x + int(100 * s), line_y + line_h],
-            radius=int(6 * s),
-            fill=(255, 255, 255, 150)
-        )
-        
-        # Second line
-        line_y2 = line_y + int(25 * s)
-        draw.rounded_rectangle(
-            [line_x, line_y2, line_x + int(70 * s), line_y2 + line_h],
-            radius=int(6 * s),
-            fill=(255, 255, 255, 100)
-        )
-    
-    # Draw connection lines
-    line_color = (255, 255, 255, 128)
-    line_width = max(1, int(4 * s))
-    
-    # Horizontal lines
-    draw.line([(int(240 * s), int(150 * s)), (int(272 * s), int(150 * s))], 
-              fill=line_color, width=line_width)
-    draw.line([(int(240 * s), int(362 * s)), (int(272 * s), int(362 * s))], 
-              fill=line_color, width=line_width)
-    
-    # Vertical lines
-    draw.line([(int(150 * s), int(240 * s)), (int(150 * s), int(272 * s))], 
-              fill=line_color, width=line_width)
-    draw.line([(int(362 * s), int(240 * s)), (int(362 * s), int(272 * s))], 
-              fill=line_color, width=line_width)
-    
-    return img
 
-def main():
-    # Get script directory and project root
+
+def build_svg() -> str:
+    """Return the master ClaudeHub icon as an SVG string."""
+    rays = []
+    for i in range(N_RAYS):
+        theta = -math.pi / 2 + i * (2 * math.pi / N_RAYS)
+        rays.append(f'      <path d="{_ray_path(theta)}"/>')
+    rays_svg = "\n".join(rays)
+
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{SIZE}" height="{SIZE}" viewBox="0 0 {SIZE} {SIZE}">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="{CORAL_LIGHT}"/>
+      <stop offset="52%" stop-color="{CORAL_MID}"/>
+      <stop offset="100%" stop-color="{CORAL_DEEP}"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="46%" r="58%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.16"/>
+      <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="cream" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="{CREAM_TOP}"/>
+      <stop offset="100%" stop-color="{CREAM_BOT}"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Claude coral squircle -->
+  <rect width="{SIZE}" height="{SIZE}" rx="{CORNER_R}" fill="url(#bg)"/>
+  <!-- soft top highlight for depth -->
+  <rect width="{SIZE}" height="{SIZE}" rx="{CORNER_R}" fill="url(#glow)"/>
+
+  <!-- Anthropic-style sunburst: a hub radiating outward -->
+  <g fill="url(#cream)">
+{rays_svg}
+      <circle cx="{CX:.0f}" cy="{CY:.0f}" r="{R_DISC}"/>
+  </g>
+  <!-- lighter core to give the hub a focal point -->
+  <circle cx="{CX:.0f}" cy="{CY:.0f}" r="{R_CORE}" fill="{CREAM_TOP}"/>
+  <circle cx="{CX:.0f}" cy="{CY:.0f}" r="{R_CORE}" fill="{CORAL_MID}" opacity="0.10"/>
+</svg>
+'''
+
+
+def rasterize(svg: str, size: int) -> Image.Image:
+    """Render the SVG to a PIL RGBA image at the given pixel size."""
+    png_bytes = cairosvg.svg2png(
+        bytestring=svg.encode("utf-8"),
+        output_width=size,
+        output_height=size,
+    )
+    from io import BytesIO
+
+    return Image.open(BytesIO(png_bytes)).convert("RGBA")
+
+
+def main() -> None:
     script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.dirname(script_dir)
-    
-    # Create build/icons directory
-    build_dir = os.path.join(project_root, 'build')
-    icons_dir = os.path.join(build_dir, 'icons')
+    root = os.path.dirname(script_dir)
+    build_dir = os.path.join(root, "build")
+    icons_dir = os.path.join(build_dir, "icons")
+    public_dir = os.path.join(root, "public")
     os.makedirs(icons_dir, exist_ok=True)
-    
-    # Generate PNG icons at all sizes
-    images = []
-    for size in SIZES:
-        img = create_icon(size)
-        
-        # Save individual PNG
-        png_path = os.path.join(icons_dir, f'{size}x{size}.png')
-        img.save(png_path, 'PNG')
-        print(f'Created: {png_path}')
-        
-        images.append(img)
-    
-    # Create icon.png (512x512) for general use
-    icon_512 = create_icon(512)
-    icon_512.save(os.path.join(build_dir, 'icon.png'), 'PNG')
-    print(f'Created: {os.path.join(build_dir, "icon.png")}')
-    
-    # Create icon.ico for Windows (multiple sizes embedded)
-    ico_sizes = [16, 32, 48, 64, 128, 256]
-    ico_images = [create_icon(s) for s in ico_sizes]
-    ico_path = os.path.join(build_dir, 'icon.ico')
-    ico_images[0].save(ico_path, format='ICO', sizes=[(s, s) for s in ico_sizes], 
-                       append_images=ico_images[1:])
-    print(f'Created: {ico_path}')
-    
-    # Also copy 512x512 as the main icon for public folder
-    public_dir = os.path.join(project_root, 'public')
-    icon_512.save(os.path.join(public_dir, 'logo.png'), 'PNG')
-    print(f'Created: {os.path.join(public_dir, "logo.png")}')
-    
-    print('\nAll icons generated successfully!')
-    print(f'\nFor macOS .icns file, run on a Mac:')
-    print(f'  cd {build_dir}')
-    print(f'  mkdir icon.iconset')
-    print(f'  cp icons/16x16.png icon.iconset/icon_16x16.png')
-    print(f'  cp icons/32x32.png icon.iconset/icon_16x16@2x.png')
-    print(f'  cp icons/32x32.png icon.iconset/icon_32x32.png')
-    print(f'  cp icons/64x64.png icon.iconset/icon_32x32@2x.png')
-    print(f'  cp icons/128x128.png icon.iconset/icon_128x128.png')
-    print(f'  cp icons/256x256.png icon.iconset/icon_128x128@2x.png')
-    print(f'  cp icons/256x256.png icon.iconset/icon_256x256.png')
-    print(f'  cp icons/512x512.png icon.iconset/icon_256x256@2x.png')
-    print(f'  cp icons/512x512.png icon.iconset/icon_512x512.png')
-    print(f'  cp icons/1024x1024.png icon.iconset/icon_512x512@2x.png')
-    print(f'  iconutil -c icns icon.iconset')
+    os.makedirs(public_dir, exist_ok=True)
 
-if __name__ == '__main__':
+    svg = build_svg()
+
+    # 1. Write the source SVGs.
+    with open(os.path.join(build_dir, "icon.svg"), "w") as fh:
+        fh.write(svg)
+    with open(os.path.join(public_dir, "logo.svg"), "w") as fh:
+        fh.write(svg)
+    print("Wrote build/icon.svg and public/logo.svg")
+
+    # 2. Rasterize every PNG size.
+    rendered: dict[int, Image.Image] = {}
+    for size in PNG_SIZES:
+        img = rasterize(svg, size)
+        rendered[size] = img
+        img.save(os.path.join(icons_dir, f"{size}x{size}.png"))
+        print(f"  build/icons/{size}x{size}.png")
+
+    # 3. Main PNGs for app + web.
+    rendered[512].save(os.path.join(build_dir, "icon.png"))
+    rendered[512].save(os.path.join(public_dir, "logo.png"))
+    print("Wrote build/icon.png and public/logo.png")
+
+    # 4. Windows .ico (multi-resolution).
+    ico_path = os.path.join(build_dir, "icon.ico")
+    base = rendered[256]
+    base.save(
+        ico_path,
+        format="ICO",
+        sizes=[(s, s) for s in ICO_SIZES],
+    )
+    print("Wrote build/icon.ico")
+
+    # 5. macOS .icns via iconutil (skips cleanly if not on macOS).
+    _build_icns(svg, build_dir)
+
+    print("\nAll ClaudeHub icons generated.")
+
+
+def _build_icns(svg: str, build_dir: str) -> None:
+    iconset = os.path.join(build_dir, "icon.iconset")
+    os.makedirs(iconset, exist_ok=True)
+    for name, size in ICNS_MAP.items():
+        rasterize(svg, size).save(os.path.join(iconset, name))
+
+    iconutil = "/usr/bin/iconutil"
+    if not os.path.exists(iconutil):
+        print("iconutil not found; left build/icon.iconset for manual conversion.")
+        return
+
+    out = os.path.join(build_dir, "icon.icns")
+    try:
+        subprocess.run(
+            [iconutil, "-c", "icns", iconset, "-o", out],
+            check=True,
+            capture_output=True,
+        )
+        print("Wrote build/icon.icns")
+        # clean up the intermediate iconset
+        for name in ICNS_MAP:
+            os.remove(os.path.join(iconset, name))
+        os.rmdir(iconset)
+    except subprocess.CalledProcessError as exc:  # pragma: no cover
+        sys.stderr.write(exc.stderr.decode("utf-8", "replace"))
+        raise
+
+
+if __name__ == "__main__":
     main()
-
-
-
-

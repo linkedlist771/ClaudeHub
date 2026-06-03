@@ -35,15 +35,19 @@
 
 ### macOS 用户注意
 
-首次打开时可能提示 **「ClaudeHub 已损坏，无法打开」** 或 **「无法验证开发者」**，这是因为应用没有 Apple 签名。
+应用经过 ad-hoc 签名但**未做 Apple 公证**（没有付费开发者账号），首次打开会提示「无法验证开发者」。
 
-打开终端运行以下命令移除隔离属性：
+**最简单**：在「应用程序」里**右键点 ClaudeHub → 打开**，弹窗里再点「打开」即可（只需一次）。
+
+或在终端移除隔离属性：
 
 ```bash
 xattr -cr /Applications/ClaudeHub.app
 # 或在 Downloads 文件夹：
 xattr -cr ~/Downloads/ClaudeHub.app
 ```
+
+> 若仍提示「已损坏」（旧版本遗留），用上面的 `xattr -cr` 命令即可解决。
 
 ## 🚀 使用方法
 

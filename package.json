@@ -1,6 +1,6 @@
 {
   "name": "claudehub",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "main": "dist-electron/main/index.js",
   "description": "Manage and use multiple Claude accounts in one window — switch accounts, view quota, and chat in parallel.",
   "author": "dingli",

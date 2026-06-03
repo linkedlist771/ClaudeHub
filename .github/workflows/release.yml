@@ -78,6 +78,9 @@ jobs:
         run: npm run build
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # 跳过 electron-builder 自带的 mac 签名（无证书时它会留下残缺签名 => "damaged"）；
+          # 由 scripts/afterPack.cjs 做正确的 ad-hoc 签名。
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

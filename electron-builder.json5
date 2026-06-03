@@ -4,6 +4,7 @@
   "appId": "com.claudehub.app",
   "asar": true,
   "productName": "ClaudeHub",
+  "afterPack": "scripts/afterPack.cjs",
   "directories": {
     "output": "release/${version}"
   },
