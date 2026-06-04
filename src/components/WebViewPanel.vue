@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-// claude.ai 对话页注入「导出 Markdown」按钮的脚本（原始字符串，注入进 webview 主世界）
-import claudeExportInject from '../utils/claudeExportInject.js?raw'
+// claude.ai 对话页注入脚本（原始字符串，注入进 webview 主世界）
+import claudeExportInject from '../utils/claudeExportInject.js?raw'   // 导出 Markdown 按钮
+import claudeUsageInject from '../utils/claudeUsageInject.js?raw'     // 额度/计费用量条
 
 export interface Platform {
   id: string
@@ -77,10 +78,11 @@ function isClaudeWebview() {
   )
 }
 
-// 向 claude.ai 注入导出按钮脚本（脚本内部幂等，可重复调用）
-function injectExportButton(webview: any) {
+// 向 claude.ai 注入页面增强脚本（均内部幂等，可重复调用）：导出按钮 + 用量条
+function injectEnhancements(webview: any) {
   if (!isClaudeWebview() || !webview?.executeJavaScript) return
   webview.executeJavaScript(claudeExportInject).catch(() => {})
+  webview.executeJavaScript(claudeUsageInject).catch(() => {})
 }
 
 function setupWebviewListeners() {
@@ -91,7 +93,7 @@ function setupWebviewListeners() {
     webview.addEventListener('did-finish-load', () => {
       loading.value = false
       // 整页加载/刷新后页面 JS 世界被重置，需重新注入
-      injectExportButton(webview)
+      injectEnhancements(webview)
     })
     webview.addEventListener('did-fail-load', () => {
       loading.value = false
@@ -198,7 +200,7 @@ function handleHeaderDoubleClick() {
         </button>
       </div>
     </div>
-    
+
     <!-- WebView -->
     <webview
       v-if="platform"

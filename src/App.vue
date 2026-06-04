@@ -8,6 +8,7 @@ import SessionHistory, { type SessionRecord } from './components/SessionHistory.
 import ClaudeDashboard, { type ClaudeAccount } from './components/ClaudeDashboard.vue'
 import { getSiteConfigById } from './utils/siteConfigs'
 import { InputManager } from './utils/inputManager'
+import { USAGE_SCRIPT, parseUsage } from './utils/usage'
 
 // Claude 站点基础配置（整个应用只用 Claude）
 const claudeConfig = getSiteConfigById('claude')!
@@ -189,26 +190,7 @@ async function handleImportAccounts() {
 // ---------- 额度刷新 ----------
 // 主进程直接请求会被 Cloudflare 403，所以在「各账号已登录的隐藏 webview」内
 // executeJavaScript 发 fetch —— 真浏览器上下文、已过 Cloudflare、cookie 自动带上。
-const USAGE_SCRIPT = `
-  (async function() {
-    try {
-      const h = { 'anthropic-client-platform': 'web_claude_ai', accept: '*/*' };
-      const orgsRes = await fetch('/api/organizations', { credentials: 'include', headers: h });
-      if (!orgsRes.ok) return { ok: false, stage: 'orgs', status: orgsRes.status };
-      const orgs = await orgsRes.json();
-      const list = Array.isArray(orgs) ? orgs : [];
-      const org = list.find(o => Array.isArray(o.capabilities) && o.capabilities.includes('chat')) || list[0];
-      const orgId = org && org.uuid;
-      if (!orgId) return { ok: false, stage: 'orgs', error: '未找到组织（可能未登录）' };
-      const usageRes = await fetch('/api/organizations/' + orgId + '/usage', { credentials: 'include', headers: h });
-      if (!usageRes.ok) return { ok: false, stage: 'usage', status: usageRes.status };
-      const data = await usageRes.json();
-      return { ok: true, data: data };
-    } catch (e) {
-      return { ok: false, error: String((e && e.message) || e) };
-    }
-  })()
-`
+// 取数脚本与解析逻辑统一放在 utils/usage.ts，与工作区面板内的用量条共用。
 
 const usageReady: Record<string, boolean> = {}
 const wiredProbes = new Set<string>()
@@ -236,20 +218,7 @@ function setupUsageWebviews() {
 }
 
 function applyUsage(acc: ClaudeAccount, data: any) {
-  const five = data?.five_hour
-  const seven = data?.seven_day
-  const fivePct = five?.utilization
-  const sevenPct = seven?.utilization
-  acc.usage = {
-    fiveHourPercent: fivePct,
-    fiveHourResetsAt: five?.resets_at,
-    sevenDayPercent: sevenPct,
-    sevenDayResetsAt: seven?.resets_at,
-    limited: (fivePct ?? 0) >= 100 || (sevenPct ?? 0) >= 100,
-    loading: false,
-    error: undefined,
-    updatedAt: Date.now()
-  }
+  acc.usage = parseUsage(data)
 }
 
 // 刷新单个账号额度
