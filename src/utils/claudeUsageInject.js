@@ -56,7 +56,8 @@
     orgId: null,
     tier: null,                  // 'claude_max_5x' 等
     convId: null,                // 当前对话 id（用于缓存 token 估算）
-    convTokens: null             // 当前对话估算 token 数
+    convTokens: null,            // 当前对话估算 token 数（含系统提示）
+    convTurns: null              // 当前对话的「人类轮数」，用来估每轮增量 d
   }
 
   // ========== 取数 ==========
@@ -129,7 +130,7 @@
   async function fetchConvTokens() {
     var m = location.pathname.match(/\/chat\/([0-9a-fA-F-]{8,})/)
     var convId = m ? m[1] : null
-    if (convId !== state.convId) { state.convId = convId; state.convTokens = null }
+    if (convId !== state.convId) { state.convId = convId; state.convTokens = null; state.convTurns = null }
     if (!convId || state.convTokens != null) return
     try {
       var orgId = await getOrgId()
@@ -137,13 +138,17 @@
       var res = await fetch(url, { credentials: 'include', headers: HEADERS })
       if (!res.ok) return
       var convo = await res.json()
-      var chars = 0
-      ;(convo.chat_messages || []).forEach(function (msg) {
+      var chars = 0, humanTurns = 0
+      var msgs = convo.chat_messages || []
+      msgs.forEach(function (msg) {
+        if (msg && msg.sender === 'human') humanTurns++
         if (Array.isArray(msg.content)) {
           msg.content.forEach(function (b) { if (b && b.text) chars += b.text.length })
         } else if (msg.text) chars += msg.text.length
       })
       state.convTokens = Math.round(chars / 4) + BASE_SYSTEM_PROMPT_TOKENS
+      // 自回归累积的「步长」用平均人类轮数估；拿不到 sender 时退化成消息对数
+      state.convTurns = humanTurns || Math.ceil(msgs.length / 2) || 1
       render()
     } catch (e) {}
   }
@@ -157,21 +162,40 @@
   }
 
   // 返回 messages-left（数字）或 null
+  //
+  // LLM 上下文是自回归累积的：在同一对话里继续聊，每一轮都要重新处理全部历史，
+  // 所以「下一条消息的成本」不是常数，而是随轮数线性增长：
+  //   第 k 条未来消息成本 ≈ C + (k-1)·d
+  //   C = 当前上下文（含系统提示）× 模型权重
+  //   d = 平均每轮新增 token × 模型权重
+  // N 条的累计成本 S(N) = N·C + d·N(N-1)/2，是二次（三角数），不能用 R/C 线性近似。
+  // 解 S(N) = R 取正根即为「还能发多少条」；d→0 时自然退化回线性 R/C。
   function estMessages() {
     if (!state.convId || !state.convTokens) return null
     var caps = ESTIMATED_CAPS[state.tier || 'claude_free'] || {}
-    var msgCost = state.convTokens * currentWeight()
-    if (msgCost <= 0) return null
+    var w = currentWeight()
+    var C = state.convTokens * w
+    if (C <= 0) return null
+    var turns = state.convTurns || 1
+    var d = ((state.convTokens - BASE_SYSTEM_PROMPT_TOKENS) / turns) * w
+    if (!(d > 0)) d = C   // 估不出步长时退化为线性（每条都按整段算）
+
     var best = Infinity
     var pairs = [['session', state.five], ['weekly', state.seven]]
     for (var i = 0; i < pairs.length; i++) {
       var key = pairs[i][0], lim = pairs[i][1], cap = caps[key]
       if (!lim || lim.pct == null || !cap) continue
-      var remaining = ((100 - lim.pct) / 100) * cap
-      var left = remaining / msgCost
+      var R = ((100 - lim.pct) / 100) * cap
+      var left
+      if (R <= 0) left = 0
+      else {
+        // (d/2)·N² + (C - d/2)·N - R = 0 的正根
+        var a = d / 2, b = C - d / 2
+        left = (-b + Math.sqrt(b * b + 4 * a * R)) / (2 * a)
+      }
       if (left < best) best = left
     }
-    return best === Infinity ? null : best
+    return best === Infinity ? null : Math.max(best, 0)
   }
 
   // ========== 工具 ==========
