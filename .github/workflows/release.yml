@@ -84,9 +84,8 @@ jobs:
         with:
           name: release-${{ matrix.platform }}
           path: |
-            release/**/*.dmg
-            release/**/*.exe
-            release/**/*.zip
+            release/**/*-Installer.dmg
+            release/**/*-Setup.exe
           if-no-files-found: warn
           retention-days: 1
 
@@ -127,9 +126,8 @@ jobs:
             1. Download the appropriate file for your operating system
             2. Run the installer and follow the instructions
           files: |
-            artifacts/**/*.dmg
-            artifacts/**/*.exe
-            artifacts/**/*.zip
+            artifacts/**/*-Installer.dmg
+            artifacts/**/*-Setup.exe
           draft: false
           prerelease: false
         env:
