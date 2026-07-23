@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import WebViewPanel from './components/WebViewPanel.vue'
+import TabbedView from './components/TabbedView.vue'
 import LayoutSelector, { type LayoutType } from './components/LayoutSelector.vue'
 import PlatformSelector from './components/PlatformSelector.vue'
 import ResizableLayout, { type CustomLayoutConfig } from './components/ResizableLayout.vue'
@@ -75,8 +76,45 @@ const isMaximized = computed(() => maximizedPanelIndex.value !== null)
 const showSessionHistory = ref(false)
 const savedSessions = ref<SessionRecord[]>([])
 
-// 视图模式：dashboard = Claude 账号主页，workspace = 并行工作区（账号窗口并排）
-const viewMode = ref<'dashboard' | 'workspace'>('dashboard')
+// 视图模式：dashboard = Claude 账号主页，workspace = 并行工作区（账号窗口并排），tabs = 浏览器式账号标签
+const viewMode = ref<'dashboard' | 'workspace' | 'tabs'>('dashboard')
+
+// 浏览器式标签：已打开的账号 id（有序）与当前活动标签
+const openTabs = ref<string[]>([])
+const activeTabId = ref<string | null>(null)
+
+// 打开（或聚焦）一个账号标签
+function openAccountTab(id: string) {
+  if (!claudeAccounts.value.some(a => a.id === id)) return
+  if (!openTabs.value.includes(id)) {
+    openTabs.value = [...openTabs.value, id]
+  }
+  activeTabId.value = id
+  maximizedPanelIndex.value = null
+  viewMode.value = 'tabs'
+}
+
+// 切换活动标签
+function setActiveTab(id: string) {
+  activeTabId.value = id
+}
+
+// 关闭标签（若关闭的是活动标签，激活相邻标签；全部关闭则回主页）
+function closeTab(id: string) {
+  const idx = openTabs.value.indexOf(id)
+  if (idx === -1) return
+  const next = [...openTabs.value]
+  next.splice(idx, 1)
+  openTabs.value = next
+  if (activeTabId.value === id) {
+    if (next.length === 0) {
+      activeTabId.value = null
+      backToDashboard()
+    } else {
+      activeTabId.value = next[Math.min(idx, next.length - 1)]
+    }
+  }
+}
 
 // 是否显示底部统一输入框（隐藏后账号窗口自适应撑满，设置持久化）
 const showInputBar = ref(true)
@@ -106,19 +144,9 @@ function enterWorkspace() {
   viewMode.value = 'workspace'
 }
 
-// 从账号卡片进入：放到槽位 0 并最大化 => 单账号全屏使用
+// 从账号卡片进入：以浏览器式标签打开该账号（单账号全屏使用）
 function handleEnterAccount(id: string) {
-  ensureSlotsInitialized()
-  const slots = [...slotAccounts.value]
-  // 若该账号已在某槽位，最大化那个槽位；否则放到槽位 0
-  let idx = slots.indexOf(id)
-  if (idx === -1) {
-    slots[0] = id
-    idx = 0
-  }
-  slotAccounts.value = slots
-  viewMode.value = 'workspace'
-  nextTick(() => { maximizedPanelIndex.value = idx })
+  openAccountTab(id)
 }
 
 function backToDashboard() {
@@ -298,6 +326,8 @@ function handleDeleteAccount(id: string) {
     claudeAccounts.value.splice(index, 1)
     saveAccounts()
   }
+  // 同步关闭该账号已打开的标签
+  if (openTabs.value.includes(id)) closeTab(id)
 }
 
 function saveAccounts() {
@@ -367,10 +397,16 @@ onMounted(() => {
   loadConfig()
   loadSessions()
   loadAccounts()
+  // 清理指向已删除账号的标签
+  const ids = new Set(claudeAccounts.value.map(a => a.id))
+  openTabs.value = openTabs.value.filter(id => ids.has(id))
+  if (activeTabId.value && !ids.has(activeTabId.value)) {
+    activeTabId.value = openTabs.value[0] || null
+  }
 })
 
 // 监听配置变化并保存
-watch([currentLayout, slotAccounts, customLayouts, showInputBar], () => {
+watch([currentLayout, slotAccounts, customLayouts, showInputBar, openTabs, activeTabId], () => {
   saveConfig()
 }, { deep: true })
 
@@ -463,7 +499,9 @@ function saveConfig() {
     layout: currentLayout.value,
     slots: slotAccounts.value,
     customLayouts: customLayouts.value,
-    showInputBar: showInputBar.value
+    showInputBar: showInputBar.value,
+    openTabs: openTabs.value,
+    activeTabId: activeTabId.value
   }
   localStorage.setItem('parallelchat-config', JSON.stringify(config))
 }
@@ -485,6 +523,12 @@ function loadConfig() {
       }
       if (typeof config.showInputBar === 'boolean') {
         showInputBar.value = config.showInputBar
+      }
+      if (config.openTabs && Array.isArray(config.openTabs)) {
+        openTabs.value = config.openTabs
+      }
+      if (typeof config.activeTabId === 'string') {
+        activeTabId.value = config.activeTabId
       }
     }
   } catch (e) {
@@ -1219,6 +1263,20 @@ function getCustomPanelStyle(index: number) {
         class="usage-probe"
       ></webview>
     </div>
+
+    <!-- 浏览器式账号标签视图 -->
+    <TabbedView
+      v-else-if="viewMode === 'tabs'"
+      :accounts="claudeAccounts"
+      :open-tabs="openTabs"
+      :active-tab-id="activeTabId"
+      :url="claudeConfig.url"
+      :color="claudeConfig.color"
+      @switch-tab="setActiveTab"
+      @close-tab="closeTab"
+      @open-tab="openAccountTab"
+      @back-dashboard="backToDashboard"
+    />
 
     <!-- 最大化面板 -->
     <div v-else-if="isMaximized && maximizedPanelIndex !== null && visiblePlatforms[maximizedPanelIndex]" class="maximized-container">
