@@ -232,7 +232,7 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
   padding: 6px 10px;
   background-color: var(--surface-alt);
   border: 1px solid var(--line);
-  border-radius: 11px;
+  border-radius: 8px;
 }
 
 .selector-label {
@@ -270,34 +270,34 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
 }
 
 .layout-btn:hover {
-  border-color: var(--kraft);
+  border-color: var(--secondary);
   color: var(--ink-2);
   background-color: var(--surface-alt);
 }
 
 .layout-btn.preset.active {
-  border-color: var(--clay);
-  color: var(--clay);
-  background-color: var(--clay-tint);
+  border-color: var(--accent);
+  color: var(--accent);
+  background-color: var(--accent-tint);
 }
 
 /* 自定义布局使用不同颜色 */
 .layout-btn.custom {
   border-color: var(--line-strong);
-  color: var(--kraft);
+  color: var(--secondary);
 }
 
 .layout-btn.custom:hover {
-  border-color: var(--kraft);
-  color: var(--kraft);
-  background-color: rgba(201, 154, 106, 0.1);
+  border-color: var(--secondary);
+  color: var(--secondary);
+  background-color: rgba(90, 110, 138, 0.1);
 }
 
 .layout-btn.custom.active {
-  border-color: var(--kraft);
-  color: var(--kraft);
-  background-color: rgba(201, 154, 106, 0.12);
-  box-shadow: 0 0 0 2px rgba(201, 154, 106, 0.18);
+  border-color: var(--secondary);
+  color: var(--secondary);
+  background-color: rgba(90, 110, 138, 0.12);
+  box-shadow: 0 0 0 2px rgba(90, 110, 138, 0.18);
 }
 
 /* 添加按钮 */
@@ -308,7 +308,7 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
 }
 
 .layout-btn.add-btn:hover {
-  border-color: var(--kraft);
+  border-color: var(--secondary);
   color: var(--ink-2);
   background-color: var(--surface-alt);
 }
@@ -327,7 +327,7 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
   position: fixed;
   background-color: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 8px;
   padding: 5px;
   z-index: 1000;
   box-shadow: var(--shadow-lg);
@@ -358,6 +358,6 @@ function getCustomLayoutIcon(config: CustomLayoutConfig) {
 }
 
 .context-menu-item.delete:hover {
-  background-color: rgba(187, 79, 61, 0.1);
+  background-color: rgba(190, 66, 58, 0.1);
 }
 </style>

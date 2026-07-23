@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted } from 'vue'
-// claude.ai 对话页注入脚本（与 WebViewPanel 共用）：导出按钮 + 用量条
-import claudeExportInject from '../utils/claudeExportInject.js?raw'
-import claudeUsageInject from '../utils/claudeUsageInject.js?raw'
 
 interface Account {
   id: string
@@ -13,7 +10,7 @@ const props = defineProps<{
   accounts: Account[]
   openTabs: string[]        // 已打开为标签的账号 id（有序）
   activeTabId: string | null
-  url: string               // claude.ai 地址
+  url: string               // chatgpt.com 地址
   color: string             // 主题色（用于活动标签强调）
 }>()
 
@@ -43,23 +40,15 @@ function tabWebviewId(accountId: string) {
   return `tabview-${accountId}`
 }
 
-// 是否为 claude 站点（决定是否注入增强脚本）
-function injectEnhancements(webview: any) {
-  if (!webview?.executeJavaScript) return
-  webview.executeJavaScript(claudeExportInject).catch(() => {})
-  webview.executeJavaScript(claudeUsageInject).catch(() => {})
-}
-
-// 给新出现的标签 webview 绑定监听（幂等，靠 __chWired 标记）
+// 给新出现的标签 webview 绑定监听。
 function wireWebviews() {
   for (const acc of tabAccounts.value) {
     const el = document.getElementById(tabWebviewId(acc.id)) as any
-    if (!el || el.__chWired) continue
-    el.__chWired = true
+    if (!el || el.__gptHubWired) continue
+    el.__gptHubWired = true
     loadingMap.value[acc.id] = true
     el.addEventListener('did-finish-load', () => {
       loadingMap.value[acc.id] = false
-      injectEnhancements(el)
     })
     el.addEventListener('did-fail-load', () => {
       loadingMap.value[acc.id] = false
@@ -166,13 +155,13 @@ function handleClose(e: MouseEvent, id: string) {
         :key="acc.id"
         :id="tabWebviewId(acc.id)"
         :src="url"
-        :partition="`persist:claude-${acc.id}`"
+        :partition="`persist:chatgpt-${acc.id}`"
         class="tab-webview"
         allowpopups
       ></webview>
 
       <div v-if="tabAccounts.length === 0" class="tab-empty">
-        没有打开的标签，点上方「+」选择一个 Claude 账号打开。
+        没有打开的标签，点上方「+」选择一个 ChatGPT 账号打开。
       </div>
     </div>
   </div>
@@ -245,7 +234,7 @@ function handleClose(e: MouseEvent, id: string) {
   border: 1px solid var(--line);
   border-top: 2px solid transparent;
   border-bottom: none;
-  border-radius: 10px 10px 0 0;
+  border-radius: 8px 8px 0 0;
   background-color: var(--surface-alt);
   color: var(--muted);
   cursor: pointer;
@@ -284,7 +273,7 @@ function handleClose(e: MouseEvent, id: string) {
   width: 12px;
   height: 12px;
   border: 2px solid var(--line-strong);
-  border-top-color: var(--clay);
+  border-top-color: var(--accent);
   border-radius: 50%;
   animation: tab-spin 0.8s linear infinite;
   flex-shrink: 0;
@@ -311,7 +300,7 @@ function handleClose(e: MouseEvent, id: string) {
 }
 
 .tab-close:hover {
-  background-color: rgba(187, 79, 61, 0.14);
+  background-color: rgba(190, 66, 58, 0.14);
   color: var(--alert);
 }
 
@@ -358,7 +347,7 @@ function handleClose(e: MouseEvent, id: string) {
   overflow-y: auto;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background-color: var(--surface);
   box-shadow: var(--shadow-lg);
   z-index: 200;

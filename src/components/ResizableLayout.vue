@@ -313,7 +313,7 @@ onUnmounted(() => {
 
 .separator:hover .separator-handle,
 .resizable-layout.dragging .separator-handle {
-  background-color: var(--clay);
+  background-color: var(--accent);
 }
 </style>
 

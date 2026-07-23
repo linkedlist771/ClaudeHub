@@ -3,8 +3,7 @@ name: Build and Release
 on:
   push:
     branches:
-      - main
-      - master
+      - GPT-Hub
     paths:
       - 'package.json'
 
@@ -54,8 +53,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: linux
           - os: macos-latest
             platform: mac
           - os: windows-latest
@@ -68,7 +65,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
@@ -89,7 +86,6 @@ jobs:
           path: |
             release/**/*.dmg
             release/**/*.exe
-            release/**/*.AppImage
             release/**/*.zip
           if-no-files-found: warn
           retention-days: 1
@@ -117,15 +113,14 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.check-version.outputs.version }}
-          name: Release v${{ needs.check-version.outputs.version }}
+          tag_name: chatgpt-v${{ needs.check-version.outputs.version }}
+          name: ChatGPT Hub v${{ needs.check-version.outputs.version }}
           body: |
-            ## 🚀 Release v${{ needs.check-version.outputs.version }}
+            ## ChatGPT Hub v${{ needs.check-version.outputs.version }}
             
             ### Downloads
             - **Windows**: Download the `.exe` installer
             - **macOS**: Download the `.dmg` file
-            - **Linux**: Download the `.AppImage` file
             
             ### Installation
             1. Download the appropriate file for your operating system
@@ -133,7 +128,6 @@ jobs:
           files: |
             artifacts/**/*.dmg
             artifacts/**/*.exe
-            artifacts/**/*.AppImage
             artifacts/**/*.zip
           draft: false
           prerelease: false

@@ -14,7 +14,13 @@ export default defineConfig(({ command }) => {
 
   return {
     plugins: [
-      vue(),
+      vue({
+        template: {
+          compilerOptions: {
+            isCustomElement: tag => tag === 'webview',
+          },
+        },
+      }),
       electron({
         main: {
           // Shortcut of `build.lib.entry`

@@ -7,6 +7,17 @@ declare module '*.vue' {
 }
 
 interface Window {
-  // expose in the `electron/preload/index.ts`
-  ipcRenderer: import('electron').IpcRenderer
+  accountSessions?: {
+    exportAccounts(accounts: { id: string; name: string }[]): Promise<AccountSessionResult>
+    importAccounts(): Promise<AccountSessionResult>
+  }
+}
+
+interface AccountSessionResult {
+  ok: boolean
+  canceled?: boolean
+  error?: string
+  count?: number
+  filePath?: string
+  accounts?: { id: string; name: string }[]
 }

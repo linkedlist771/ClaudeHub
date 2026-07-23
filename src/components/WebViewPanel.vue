@@ -1,8 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
-// claude.ai 对话页注入脚本（原始字符串，注入进 webview 主世界）
-import claudeExportInject from '../utils/claudeExportInject.js?raw'   // 导出 Markdown 按钮
-import claudeUsageInject from '../utils/claudeUsageInject.js?raw'     // 额度/计费用量条
 
 export interface Platform {
   id: string
@@ -71,29 +68,13 @@ watch(() => props.platform?.id, () => {
   setTimeout(setupWebviewListeners, 100)
 })
 
-// 是否为 Claude 站点（仅 claude.ai 注入导出按钮）
-function isClaudeWebview() {
-  return !!props.platform && (
-    props.platform.url.includes('claude.ai') || props.platform.id.startsWith('claude')
-  )
-}
-
-// 向 claude.ai 注入页面增强脚本（均内部幂等，可重复调用）：导出按钮 + 用量条
-function injectEnhancements(webview: any) {
-  if (!isClaudeWebview() || !webview?.executeJavaScript) return
-  webview.executeJavaScript(claudeExportInject).catch(() => {})
-  webview.executeJavaScript(claudeUsageInject).catch(() => {})
-}
-
 function setupWebviewListeners() {
   if (!props.platform) return
   const webview = document.getElementById(webviewId.value) as any
-  if (webview && !webview.__chWired) {
-    webview.__chWired = true
+  if (webview && !webview.__gptHubWired) {
+    webview.__gptHubWired = true
     webview.addEventListener('did-finish-load', () => {
       loading.value = false
-      // 整页加载/刷新后页面 JS 世界被重置，需重新注入
-      injectEnhancements(webview)
     })
     webview.addEventListener('did-fail-load', () => {
       loading.value = false
@@ -217,7 +198,7 @@ function handleHeaderDoubleClick() {
       <span class="empty-slot-icon" aria-hidden="true">
         <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
       </span>
-      <span class="empty-slot-text">点击选择 Claude 账号</span>
+      <span class="empty-slot-text">点击选择 ChatGPT 账号</span>
     </div>
   </div>
 </template>
@@ -228,7 +209,7 @@ function handleHeaderDoubleClick() {
   flex-direction: column;
   background-color: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   overflow: hidden;
   height: 100%;
 }
@@ -299,7 +280,7 @@ function handleHeaderDoubleClick() {
   overflow-y: auto;
   padding: 6px;
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 8px;
   background-color: var(--surface);
   box-shadow: var(--shadow-lg);
   z-index: 100;
@@ -326,7 +307,7 @@ function handleHeaderDoubleClick() {
 }
 
 .account-menu-item.active {
-  color: var(--clay-deep);
+  color: var(--accent-deep);
   font-weight: 600;
 }
 
@@ -345,7 +326,7 @@ function handleHeaderDoubleClick() {
 }
 
 .dot.on {
-  background-color: var(--clay);
+  background-color: var(--accent);
 }
 
 .header-actions {
@@ -403,9 +384,9 @@ function handleHeaderDoubleClick() {
 }
 
 .text-action.active {
-  background-color: var(--clay-tint);
-  border-color: var(--clay-soft);
-  color: var(--clay-deep);
+  background-color: var(--accent-tint);
+  border-color: var(--accent-soft);
+  color: var(--accent-deep);
 }
 
 .header-divider {
@@ -429,14 +410,12 @@ function handleHeaderDoubleClick() {
   justify-content: center;
   gap: 12px;
   background-color: var(--surface-alt);
-  background-image: radial-gradient(circle at 1px 1px, rgba(120, 110, 90, 0.06) 1px, transparent 0);
-  background-size: 18px 18px;
   cursor: pointer;
   transition: background 0.2s;
 }
 
 .empty-slot:hover {
-  background-color: var(--clay-tint);
+  background-color: var(--accent-tint);
 }
 
 .empty-slot-icon {
@@ -445,9 +424,9 @@ function handleHeaderDoubleClick() {
   justify-content: center;
   width: 48px;
   height: 48px;
-  border-radius: 14px;
+  border-radius: 8px;
   border: 1px dashed var(--line-strong);
-  color: var(--kraft);
+  color: var(--secondary);
 }
 
 .empty-slot-text {

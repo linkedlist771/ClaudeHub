@@ -1,11 +1,9 @@
-import { app, BrowserWindow, shell, ipcMain, session, dialog, net } from 'electron'
-import { createRequire } from 'node:module'
+import { app, BrowserWindow, shell, ipcMain, session, dialog } from 'electron'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
 
-const require = createRequire(import.meta.url)
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // The built directory structure
@@ -35,12 +33,12 @@ if (os.release().startsWith('6.1')) app.disableHardwareAcceleration()
 if (process.platform === 'win32') app.setAppUserModelId(app.getName())
 
 // 开发模式（vite dev server）下使用独立的应用名 / userData 目录，
-// 避免与已安装并运行中的正式版 ClaudeHub 抢「单实例锁」，
+// 避免与已安装并运行中的正式版 ChatGPTHub 抢「单实例锁」，
 // 否则 `npm run dev` 启动的开发版会因拿不到锁而立即退出（窗口开不出来）。
 // 仅 dev 生效；打包后的正式版没有 VITE_DEV_SERVER_URL，行为不变。
 if (process.env.VITE_DEV_SERVER_URL) {
-  app.setName('claudehub-dev')
-  app.setPath('userData', path.join(app.getPath('appData'), 'claudehub-dev'))
+  app.setName('chatgpthub-dev')
+  app.setPath('userData', path.join(app.getPath('appData'), 'chatgpthub-dev'))
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -54,21 +52,33 @@ const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
 async function createWindow() {
   win = new BrowserWindow({
-    title: 'ClaudeHub',
+    title: 'ChatGPTHub',
     width: 1600,
     height: 1000,
-    icon: path.join(process.env.VITE_PUBLIC, 'favicon.ico'),
+    icon: path.join(process.env.VITE_PUBLIC, 'logo.png'),
     webPreferences: {
       preload,
-      // 启用 webview 标签
       webviewTag: true,
-      // Warning: Enable nodeIntegration and disable contextIsolation is not secure in production
-      // nodeIntegration: true,
-
-      // Consider using contextBridge.exposeInMainWorld
-      // Read more on https://www.electronjs.org/docs/latest/tutorial/context-isolation
-      // contextIsolation: false,
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
     },
+  })
+
+  win.webContents.on('will-attach-webview', (event, webPreferences, params) => {
+    delete webPreferences.preload
+    webPreferences.nodeIntegration = false
+    webPreferences.contextIsolation = true
+    webPreferences.sandbox = true
+
+    try {
+      const origin = new URL(params.src).origin
+      if (origin !== 'https://chatgpt.com' && origin !== 'https://chat.openai.com') {
+        event.preventDefault()
+      }
+    } catch {
+      event.preventDefault()
+    }
   })
 
   if (VITE_DEV_SERVER_URL) { // #298
@@ -78,11 +88,6 @@ async function createWindow() {
   } else {
     win.loadFile(indexHtml)
   }
-
-  // Test actively push message to the Electron-Renderer
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', new Date().toLocaleString())
-  })
 
   // Make all links open with the browser, not with the application
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -116,10 +121,9 @@ app.on('activate', () => {
   }
 })
 
-// ---------- Claude 账号凭证 导出 / 导入 ----------
-// 登录态主要在 partition 的 cookie 里（claude.ai 的 sessionKey 是 httpOnly，
-// 只能在主进程通过 session API 读写）。导出全部账号 cookie 到 JSON，
-// 换台电脑导入后即可免登录使用。
+// ---------- ChatGPT 账号会话 cookie 导出 / 导入 ----------
+// httpOnly cookie 只能在主进程通过 session API 读写。导入后仍可能因
+// OpenAI 的安全校验、SSO 或设备绑定而需要重新登录。
 
 function cookieToUrl(c: Electron.Cookie): string {
   const host = c.domain?.startsWith('.') ? c.domain.slice(1) : (c.domain || '')
@@ -132,15 +136,15 @@ ipcMain.handle('export-accounts', async (_, accounts: { id: string; name: string
   try {
     const out: any[] = []
     for (const acc of accounts || []) {
-      const ses = session.fromPartition(`persist:claude-${acc.id}`)
+      const ses = session.fromPartition(`persist:chatgpt-${acc.id}`)
       const cookies = await ses.cookies.get({})
       out.push({ id: acc.id, name: acc.name, cookies })
     }
-    const data = JSON.stringify({ app: 'ClaudeHub', version: 1, exportedAt: Date.now(), accounts: out }, null, 2)
+    const data = JSON.stringify({ app: 'ChatGPTHub', version: 1, exportedAt: Date.now(), accounts: out }, null, 2)
 
     const { canceled, filePath } = await dialog.showSaveDialog({
-      title: '导出 Claude 账号凭证',
-      defaultPath: `claude-accounts-${new Date().toISOString().slice(0, 10)}.json`,
+      title: '导出 ChatGPT 账号会话',
+      defaultPath: `chatgpt-accounts-${new Date().toISOString().slice(0, 10)}.json`,
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
     if (canceled || !filePath) return { ok: false, canceled: true }
@@ -154,17 +158,23 @@ ipcMain.handle('export-accounts', async (_, accounts: { id: string; name: string
 ipcMain.handle('import-accounts', async () => {
   try {
     const { canceled, filePaths } = await dialog.showOpenDialog({
-      title: '导入 Claude 账号凭证',
+      title: '导入 ChatGPT 账号会话',
       properties: ['openFile'],
       filters: [{ name: 'JSON', extensions: ['json'] }],
     })
     if (canceled || !filePaths?.[0]) return { ok: false, canceled: true }
 
     const parsed = JSON.parse(fs.readFileSync(filePaths[0], 'utf-8'))
-    const accounts = Array.isArray(parsed?.accounts) ? parsed.accounts : []
+    if (parsed?.app !== 'ChatGPTHub' || parsed?.version !== 1) {
+      return { ok: false, error: '文件不是受支持的 ChatGPTHub 会话导出格式' }
+    }
+    const accounts = (Array.isArray(parsed.accounts) ? parsed.accounts : []).filter((acc: any) =>
+      typeof acc?.id === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(acc.id) &&
+      typeof acc?.name === 'string' && Array.isArray(acc?.cookies)
+    )
 
     for (const acc of accounts) {
-      const ses = session.fromPartition(`persist:claude-${acc.id}`)
+      const ses = session.fromPartition(`persist:chatgpt-${acc.id}`)
       for (const c of acc.cookies || []) {
         try {
           await ses.cookies.set({
@@ -187,81 +197,5 @@ ipcMain.handle('import-accounts', async () => {
     return { ok: true, count: accounts.length, accounts: accounts.map((a: any) => ({ id: a.id, name: a.name })) }
   } catch (e: any) {
     return { ok: false, error: e?.message || String(e) }
-  }
-})
-
-// ---------- Claude 额度（用量）查询 ----------
-// 直接用该账号 partition 的 session 发请求，cookie（含 httpOnly 的 sessionKey
-// 与 cf_clearance）自动带上，同机同 IP、UA 一致，无需 webview / Playwright。
-
-function netJson(ses: Electron.Session, url: string): Promise<{ ok: boolean; status?: number; data?: any; error?: string; body?: string }> {
-  return new Promise((resolve) => {
-    const req = net.request({ method: 'GET', url, session: ses, useSessionCookies: true })
-    req.setHeader('anthropic-client-platform', 'web_claude_ai')
-    req.setHeader('accept', '*/*')
-    let body = ''
-    req.on('response', (res) => {
-      res.on('data', (chunk) => { body += chunk.toString() })
-      res.on('end', () => {
-        const status = res.statusCode
-        if (status === 200) {
-          try {
-            resolve({ ok: true, status, data: JSON.parse(body) })
-          } catch {
-            resolve({ ok: false, status, error: 'parse', body: body.slice(0, 200) })
-          }
-        } else {
-          resolve({ ok: false, status, body: body.slice(0, 200) })
-        }
-      })
-    })
-    req.on('error', (e) => resolve({ ok: false, error: e.message }))
-    req.end()
-  })
-}
-
-ipcMain.handle('fetch-usage', async (_, accountId: string) => {
-  try {
-    const ses = session.fromPartition(`persist:claude-${accountId}`)
-
-    // 1. 拿到该账号的 organization uuid
-    const orgs = await netJson(ses, 'https://claude.ai/api/organizations')
-    if (!orgs.ok) {
-      return { ok: false, stage: 'orgs', status: orgs.status, error: orgs.error || `HTTP ${orgs.status}` }
-    }
-    const list = Array.isArray(orgs.data) ? orgs.data : []
-    const org =
-      list.find((o: any) => Array.isArray(o?.capabilities) && o.capabilities.includes('chat')) ||
-      list[0]
-    const orgId = org?.uuid
-    if (!orgId) {
-      return { ok: false, stage: 'orgs', error: '未找到 organization（可能未登录）' }
-    }
-
-    // 2. 拉用量
-    const usage = await netJson(ses, `https://claude.ai/api/organizations/${orgId}/usage`)
-    if (!usage.ok) {
-      return { ok: false, stage: 'usage', status: usage.status, error: usage.error || `HTTP ${usage.status}` }
-    }
-    return { ok: true, data: usage.data }
-  } catch (e: any) {
-    return { ok: false, error: e?.message || String(e) }
-  }
-})
-
-// New window example arg: new windows url
-ipcMain.handle('open-win', (_, arg) => {
-  const childWindow = new BrowserWindow({
-    webPreferences: {
-      preload,
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  })
-
-  if (VITE_DEV_SERVER_URL) {
-    childWindow.loadURL(`${VITE_DEV_SERVER_URL}#${arg}`)
-  } else {
-    childWindow.loadFile(indexHtml, { hash: arg })
   }
 })

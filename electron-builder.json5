@@ -1,9 +1,9 @@
 // @see https://www.electron.build/configuration/configuration
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.claudehub.app",
+  "appId": "com.chatgpthub.app",
   "asar": true,
-  "productName": "ClaudeHub",
+  "productName": "ChatGPTHub",
   "afterPack": "scripts/afterPack.cjs",
   "directories": {
     "output": "release/${version}"

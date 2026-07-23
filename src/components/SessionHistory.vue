@@ -173,7 +173,7 @@ function handleKeydown(event: KeyboardEvent) {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(31, 30, 27, 0.38);
+  background-color: rgba(22, 29, 26, 0.4);
   backdrop-filter: blur(2px);
   z-index: 999;
 }
@@ -188,7 +188,7 @@ function handleKeydown(event: KeyboardEvent) {
 
 .panel-header h3 {
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 500;
   color: var(--ink);
@@ -227,7 +227,7 @@ function handleKeydown(event: KeyboardEvent) {
   width: 100%;
   padding: 11px 16px;
   border: 1px dashed var(--line-strong);
-  border-radius: 11px;
+  border-radius: 8px;
   background-color: var(--surface-alt);
   color: var(--ink-2);
   font-size: 14px;
@@ -237,9 +237,9 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .save-btn:hover {
-  border-color: var(--clay-soft);
-  color: var(--clay-deep);
-  background-color: var(--clay-tint);
+  border-color: var(--accent-soft);
+  color: var(--accent-deep);
+  background-color: var(--accent-tint);
 }
 
 .session-list {
@@ -268,7 +268,7 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   align-items: center;
   padding: 12px;
-  border-radius: 11px;
+  border-radius: 8px;
   margin-bottom: 4px;
   cursor: pointer;
   transition: all 0.18s;
@@ -296,7 +296,7 @@ function handleKeydown(event: KeyboardEvent) {
 .name-input {
   width: 100%;
   padding: 5px 9px;
-  border: 1px solid var(--clay);
+  border: 1px solid var(--accent);
   border-radius: 7px;
   background-color: var(--surface);
   color: var(--ink);
@@ -350,7 +350,7 @@ function handleKeydown(event: KeyboardEvent) {
 }
 
 .action-btn.delete:hover {
-  background-color: rgba(187, 79, 61, 0.12);
+  background-color: rgba(190, 66, 58, 0.12);
   color: var(--alert);
 }
 
@@ -375,7 +375,5 @@ function handleKeydown(event: KeyboardEvent) {
   opacity: 0;
 }
 </style>
-
-
 
 

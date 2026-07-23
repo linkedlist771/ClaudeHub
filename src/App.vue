@@ -1,18 +1,17 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch, nextTick } from 'vue'
 import WebViewPanel from './components/WebViewPanel.vue'
 import TabbedView from './components/TabbedView.vue'
 import LayoutSelector, { type LayoutType } from './components/LayoutSelector.vue'
 import PlatformSelector from './components/PlatformSelector.vue'
 import ResizableLayout, { type CustomLayoutConfig } from './components/ResizableLayout.vue'
 import SessionHistory, { type SessionRecord } from './components/SessionHistory.vue'
-import ClaudeDashboard, { type ClaudeAccount } from './components/ClaudeDashboard.vue'
+import ChatGPTDashboard, { type ChatGPTAccount } from './components/ChatGPTDashboard.vue'
 import { getSiteConfigById } from './utils/siteConfigs'
 import { InputManager } from './utils/inputManager'
-import { USAGE_SCRIPT, parseUsage } from './utils/usage'
 
-// Claude 站点基础配置（整个应用只用 Claude）
-const claudeConfig = getSiteConfigById('claude')!
+// ChatGPT 站点基础配置（整个应用只用 ChatGPT）
+const chatgptConfig = getSiteConfigById('chatgpt')!
 
 interface Platform {
   id: string
@@ -23,13 +22,13 @@ interface Platform {
 
 // 把一个账号 id 转成用于渲染的合成 platform；id 唯一 => partition / webview 自动隔离
 function accountToPlatform(accountId: string): Platform | null {
-  const acc = claudeAccounts.value.find(a => a.id === accountId)
+  const acc = chatgptAccounts.value.find(a => a.id === accountId)
   if (!acc) return null
   return {
-    id: `claude-${acc.id}`,
+    id: `chatgpt-${acc.id}`,
     name: acc.name,
-    url: claudeConfig.url,
-    color: claudeConfig.color
+    url: chatgptConfig.url,
+    color: chatgptConfig.color
   }
 }
 
@@ -64,7 +63,6 @@ const sendResults = ref<{ platformId: string; name: string; success: boolean; me
 interface ImageAttachment {
   id: string
   dataUrl: string
-  file: File
 }
 const attachedImages = ref<ImageAttachment[]>([])
 
@@ -76,7 +74,7 @@ const isMaximized = computed(() => maximizedPanelIndex.value !== null)
 const showSessionHistory = ref(false)
 const savedSessions = ref<SessionRecord[]>([])
 
-// 视图模式：dashboard = Claude 账号主页，workspace = 并行工作区（账号窗口并排），tabs = 浏览器式账号标签
+// 视图模式：dashboard = ChatGPT 账号主页，workspace = 并行工作区（账号窗口并排），tabs = 浏览器式账号标签
 const viewMode = ref<'dashboard' | 'workspace' | 'tabs'>('dashboard')
 
 // 浏览器式标签：已打开的账号 id（有序）与当前活动标签
@@ -85,7 +83,7 @@ const activeTabId = ref<string | null>(null)
 
 // 打开（或聚焦）一个账号标签
 function openAccountTab(id: string) {
-  if (!claudeAccounts.value.some(a => a.id === id)) return
+  if (!chatgptAccounts.value.some(a => a.id === id)) return
   if (!openTabs.value.includes(id)) {
     openTabs.value = [...openTabs.value, id]
   }
@@ -119,12 +117,12 @@ function closeTab(id: string) {
 // 是否显示底部统一输入框（隐藏后账号窗口自适应撑满，设置持久化）
 const showInputBar = ref(true)
 
-// Claude 多账号
-const claudeAccounts = ref<ClaudeAccount[]>([])
+// ChatGPT 多账号
+const chatgptAccounts = ref<ChatGPTAccount[]>([])
 
 // 确保槽位已按当前可用账号填充（空缺补 ''）
 function ensureSlotsInitialized() {
-  const ids = claudeAccounts.value.map(a => a.id)
+  const ids = chatgptAccounts.value.map(a => a.id)
   const slots = [...slotAccounts.value]
   for (let i = 0; i < slotCount.value; i++) {
     // 槽位为空或引用了已删除账号时，尝试补一个尚未占用的账号
@@ -155,7 +153,7 @@ function backToDashboard() {
 }
 
 function handleAddAccount(name: string) {
-  claudeAccounts.value.push({ id: `acct-${Date.now()}`, name })
+  chatgptAccounts.value.push({ id: `acct-${crypto.randomUUID()}`, name })
   saveAccounts()
 }
 
@@ -170,150 +168,53 @@ function handleSwitchAccount(slotIndex: number, accountId: string) {
   slotAccounts.value = newSlots
 }
 
-// 导出所有账号凭证到 JSON 文件
+// 导出所有账号会话 cookie 到 JSON 文件
 async function handleExportAccounts() {
-  if (claudeAccounts.value.length === 0) {
+  if (chatgptAccounts.value.length === 0) {
     alert('还没有账号可导出')
     return
   }
-  const ipc = (window as any).ipcRenderer
-  if (!ipc?.invoke) {
+  const accountSessions = window.accountSessions
+  if (!accountSessions) {
     alert('当前环境不支持导出')
     return
   }
-  const payload = claudeAccounts.value.map(a => ({ id: a.id, name: a.name }))
-  const res = await ipc.invoke('export-accounts', payload)
+  const payload = chatgptAccounts.value.map(a => ({ id: a.id, name: a.name }))
+  const res = await accountSessions.exportAccounts(payload)
   if (res?.ok) {
-    alert(`已导出 ${res.count} 个账号凭证到：\n${res.filePath}\n\n⚠️ 该文件含登录凭证，等同于账号密码，请妥善保管、勿外传。`)
+    alert(`已导出 ${res.count} 个账号会话到：\n${res.filePath}\n\n该文件包含敏感登录 cookie，请按密码同等级别保管。`)
   } else if (!res?.canceled) {
     alert('导出失败：' + (res?.error || '未知错误'))
   }
 }
 
-// 从 JSON 文件导入账号凭证
+// 从 JSON 文件导入账号会话 cookie
 async function handleImportAccounts() {
-  const ipc = (window as any).ipcRenderer
-  if (!ipc?.invoke) {
+  const accountSessions = window.accountSessions
+  if (!accountSessions) {
     alert('当前环境不支持导入')
     return
   }
-  const res = await ipc.invoke('import-accounts')
+  const res = await accountSessions.importAccounts()
   if (res?.ok) {
     // 合并账号列表（cookie 已由主进程写入对应分区）
     for (const acc of res.accounts || []) {
-      const exist = claudeAccounts.value.find(a => a.id === acc.id)
+      const exist = chatgptAccounts.value.find(a => a.id === acc.id)
       if (exist) {
         exist.name = acc.name
       } else {
-        claudeAccounts.value.push({ id: acc.id, name: acc.name })
+        chatgptAccounts.value.push({ id: acc.id, name: acc.name })
       }
     }
     saveAccounts()
-    alert(`已导入 ${res.count} 个账号，点进去即可直接使用（无需重新登录）。`)
+    alert(`已导入 ${res.count} 个账号会话。若安全校验已过期，ChatGPT 会要求重新登录。`)
   } else if (!res?.canceled) {
     alert('导入失败：' + (res?.error || '未知错误'))
   }
 }
 
-// ---------- 额度刷新 ----------
-// 主进程直接请求会被 Cloudflare 403，所以在「各账号已登录的隐藏 webview」内
-// executeJavaScript 发 fetch —— 真浏览器上下文、已过 Cloudflare、cookie 自动带上。
-// 取数脚本与解析逻辑统一放在 utils/usage.ts，与工作区面板内的用量条共用。
-
-const usageReady: Record<string, boolean> = {}
-const wiredProbes = new Set<string>()
-
-function usageWebviewId(accountId: string) {
-  return `usage-webview-${accountId}`
-}
-
-// 给隐藏 webview 绑定 dom-ready（就绪后立即取一次）
-function setupUsageWebviews() {
-  for (const acc of claudeAccounts.value) {
-    if (wiredProbes.has(acc.id)) continue
-    const el = document.getElementById(usageWebviewId(acc.id)) as any
-    if (!el) continue
-    wiredProbes.add(acc.id)
-    el.addEventListener('dom-ready', () => {
-      usageReady[acc.id] = true
-      refreshUsage(acc.id)
-    })
-    el.addEventListener('destroyed', () => {
-      usageReady[acc.id] = false
-      wiredProbes.delete(acc.id)
-    })
-  }
-}
-
-function applyUsage(acc: ClaudeAccount, data: any) {
-  acc.usage = parseUsage(data)
-}
-
-// 刷新单个账号额度
-async function refreshUsage(accountId: string) {
-  const acc = claudeAccounts.value.find(a => a.id === accountId)
-  if (!acc) return
-  const el = document.getElementById(usageWebviewId(accountId)) as any
-
-  if (!el || !usageReady[accountId] || !el.executeJavaScript) {
-    // webview 尚未就绪，标记加载中，等 dom-ready 再取
-    acc.usage = { ...(acc.usage || {}), loading: true }
-    return
-  }
-
-  acc.usage = { ...(acc.usage || {}), loading: true, error: undefined }
-  try {
-    const res = await el.executeJavaScript(USAGE_SCRIPT)
-    if (res?.ok && res.data) {
-      applyUsage(acc, res.data)
-    } else {
-      const reason = res?.error || `获取失败${res?.status ? ' (' + res.status + ')' : ''}`
-      acc.usage = { ...(acc.usage || {}), loading: false, error: reason }
-    }
-  } catch (e: any) {
-    acc.usage = { ...(acc.usage || {}), loading: false, error: e?.message || '获取失败' }
-  }
-  saveAccounts()
-}
-
-// 刷新所有账号额度（并发）
-async function refreshAllUsage() {
-  setupUsageWebviews()
-  await Promise.all(claudeAccounts.value.map(a => refreshUsage(a.id)))
-}
-
-// 每 5 秒自动刷新（仅在账号主页时运行）
-const USAGE_REFRESH_MS = 5000
-let usageTimer: ReturnType<typeof setInterval> | null = null
-
-function startUsageAutoRefresh() {
-  if (usageTimer) return
-  nextTick(setupUsageWebviews)
-  usageTimer = setInterval(() => {
-    if (viewMode.value === 'dashboard') {
-      setupUsageWebviews()
-      refreshAllUsage()
-    }
-  }, USAGE_REFRESH_MS)
-}
-
-function stopUsageAutoRefresh() {
-  if (usageTimer) {
-    clearInterval(usageTimer)
-    usageTimer = null
-  }
-}
-
-// 进入/离开主页时开关自动刷新
-watch(viewMode, (mode) => {
-  if (mode === 'dashboard') nextTick(startUsageAutoRefresh)
-  else stopUsageAutoRefresh()
-}, { immediate: true })
-
-onUnmounted(stopUsageAutoRefresh)
-
 function handleRenameAccount(id: string, name: string) {
-  const acct = claudeAccounts.value.find(a => a.id === id)
+  const acct = chatgptAccounts.value.find(a => a.id === id)
   if (acct) {
     acct.name = name
     saveAccounts()
@@ -321,9 +222,9 @@ function handleRenameAccount(id: string, name: string) {
 }
 
 function handleDeleteAccount(id: string) {
-  const index = claudeAccounts.value.findIndex(a => a.id === id)
+  const index = chatgptAccounts.value.findIndex(a => a.id === id)
   if (index !== -1) {
-    claudeAccounts.value.splice(index, 1)
+    chatgptAccounts.value.splice(index, 1)
     saveAccounts()
   }
   // 同步关闭该账号已打开的标签
@@ -331,18 +232,18 @@ function handleDeleteAccount(id: string) {
 }
 
 function saveAccounts() {
-  localStorage.setItem('parallelchat-claude-accounts', JSON.stringify(claudeAccounts.value))
+  localStorage.setItem('chatgpthub-accounts', JSON.stringify(chatgptAccounts.value))
 }
 
 function loadAccounts() {
   try {
-    const saved = localStorage.getItem('parallelchat-claude-accounts')
+    const saved = localStorage.getItem('chatgpthub-accounts')
     if (saved) {
       const parsed = JSON.parse(saved)
-      if (Array.isArray(parsed)) claudeAccounts.value = parsed
+      if (Array.isArray(parsed)) chatgptAccounts.value = parsed
     }
   } catch (e) {
-    console.error('Failed to load claude accounts:', e)
+    console.error('Failed to load ChatGPT accounts:', e)
   }
 }
 
@@ -378,11 +279,11 @@ const visiblePlatforms = computed<(Platform | null)[]>(() => {
 
 // 账号选择器用的列表（复用 PlatformSelector，把账号映射成 platform 形状）
 const accountOptions = computed<Platform[]>(() =>
-  claudeAccounts.value.map(a => ({
+  chatgptAccounts.value.map(a => ({
     id: a.id,
     name: a.name,
-    url: claudeConfig.url,
-    color: claudeConfig.color
+    url: chatgptConfig.url,
+    color: chatgptConfig.color
   }))
 )
 
@@ -398,7 +299,7 @@ onMounted(() => {
   loadSessions()
   loadAccounts()
   // 清理指向已删除账号的标签
-  const ids = new Set(claudeAccounts.value.map(a => a.id))
+  const ids = new Set(chatgptAccounts.value.map(a => a.id))
   openTabs.value = openTabs.value.filter(id => ids.has(id))
   if (activeTabId.value && !ids.has(activeTabId.value)) {
     activeTabId.value = openTabs.value[0] || null
@@ -503,13 +404,13 @@ function saveConfig() {
     openTabs: openTabs.value,
     activeTabId: activeTabId.value
   }
-  localStorage.setItem('parallelchat-config', JSON.stringify(config))
+  localStorage.setItem('chatgpthub-config', JSON.stringify(config))
 }
 
 // 从 localStorage 加载配置
 function loadConfig() {
   try {
-    const saved = localStorage.getItem('parallelchat-config')
+    const saved = localStorage.getItem('chatgpthub-config')
     if (saved) {
       const config = JSON.parse(saved)
       if (config.customLayouts && Array.isArray(config.customLayouts)) {
@@ -539,7 +440,7 @@ function loadConfig() {
 // 加载会话历史
 function loadSessions() {
   try {
-    const saved = localStorage.getItem('parallelchat-sessions')
+    const saved = localStorage.getItem('chatgpthub-sessions')
     if (saved) {
       savedSessions.value = JSON.parse(saved)
     }
@@ -550,7 +451,7 @@ function loadSessions() {
 
 // 保存会话历史
 function saveSessions() {
-  localStorage.setItem('parallelchat-sessions', JSON.stringify(savedSessions.value))
+  localStorage.setItem('chatgpthub-sessions', JSON.stringify(savedSessions.value))
 }
 
 // 获取所有 WebView 的当前 URL
@@ -658,8 +559,9 @@ async function handleSend() {
 
   console.log('Sending to accounts with images:', hasImages)
 
-  // 图片已经在粘贴时同步了，现在只需要输入文字并发送（所有可见账号都是 Claude）
-  const siteConfig = claudeConfig
+  // 图片已经在粘贴时同步了，现在只需要输入文字并发送。
+  const siteConfig = chatgptConfig
+  const images = attachedImages.value.map(image => image.dataUrl)
   const promises = visiblePlatforms.value.map(async (platform, index) => {
     if (!platform) return null
     const platformId = platform.id
@@ -674,16 +576,39 @@ async function handleSend() {
 
     try {
       const inputManager = new InputManager(siteConfig)
+
+      for (const imageDataUrl of images) {
+        const focusResult = await webview.executeJavaScript(inputManager.getSimulatePasteScript())
+        if (!focusResult?.success) {
+          return { platformId, name, success: false, message: focusResult?.error || '无法聚焦输入框' }
+        }
+        const pasteResult = await webview.executeJavaScript(
+          generatePasteImageScript(imageDataUrl, siteConfig.textareaSelectors, 'chatgpt')
+        )
+        if (!pasteResult?.success) {
+          return { platformId, name, success: false, message: pasteResult?.error || '图片添加失败' }
+        }
+        await new Promise(r => setTimeout(r, 250))
+      }
       
       // 如果有文字，先输入文字（追加到已有内容后面）
       if (message) {
         const appendTextScript = generateAppendTextScript(message, siteConfig.textareaSelectors)
-        await webview.executeJavaScript(appendTextScript)
+        const appendResult = await webview.executeJavaScript(appendTextScript)
+        if (!appendResult?.success) {
+          return { platformId, name, success: false, message: appendResult?.error || '输入失败' }
+        }
         await new Promise(r => setTimeout(r, 100))
       }
       
-      // 点击发送按钮
-      await new Promise(r => setTimeout(r, 100))
+      // 等待 ChatGPT 处理附件并启用发送按钮。
+      const readyResult = await webview.executeJavaScript(
+        generateWaitForSendReadyScript(siteConfig.sendButtonSelectors)
+      )
+      if (!readyResult?.success) {
+        return { platformId, name, success: false, message: readyResult?.error || '发送按钮尚未就绪' }
+      }
+
       const sendScript = inputManager.getClickSendButtonScript()
       const sendResult = await webview.executeJavaScript(sendScript)
       
@@ -717,6 +642,30 @@ async function handleSend() {
   }, 3000)
   
   isSending.value = false
+}
+
+function generateWaitForSendReadyScript(buttonSelectors: string[]): string {
+  const selectors = JSON.stringify(buttonSelectors)
+  return `
+    (async function() {
+      const selectors = ${selectors};
+      const deadline = Date.now() + 10000;
+
+      while (Date.now() < deadline) {
+        for (const selector of selectors) {
+          try {
+            const button = document.querySelector(selector);
+            if (button && button.offsetParent !== null && !button.disabled) {
+              return { success: true };
+            }
+          } catch (e) {}
+        }
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+
+      return { success: false, error: '等待发送按钮超时' };
+    })()
+  `
 }
 
 // 生成追加文字的脚本（不清空已有内容）
@@ -775,10 +724,14 @@ function generateAppendTextScript(text: string, textareaSelectors: string[]): st
         return null;
       }
       
-      function safeDispatchEvent(element, eventType) {
+      function dispatchInput(element, value) {
         try {
-          const event = new Event(eventType, { bubbles: true, cancelable: true });
-          element.dispatchEvent(event);
+          element.dispatchEvent(new InputEvent('input', {
+            bubbles: true,
+            cancelable: false,
+            inputType: 'insertText',
+            data: value
+          }));
         } catch (e) {}
       }
       
@@ -789,18 +742,29 @@ function generateAppendTextScript(text: string, textareaSelectors: string[]): st
       
       textarea.focus();
       
-      // 追加文字（不清空）
+      // 使用浏览器原生编辑命令，让 ChatGPT 的 React/ProseMirror 编辑器收到真实输入事件。
       if (textarea.tagName.toLowerCase() === 'textarea') {
         const currentValue = textarea.value || '';
-        textarea.value = currentValue + (currentValue ? ' ' : '') + text;
+        const nextValue = currentValue + (currentValue ? '\n' : '') + text;
+        const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set;
+        if (setter) setter.call(textarea, nextValue);
+        else textarea.value = nextValue;
         textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+        dispatchInput(textarea, text);
       } else {
         const currentText = textarea.textContent || '';
-        textarea.textContent = currentText + (currentText ? ' ' : '') + text;
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(textarea);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        const inserted = document.execCommand('insertText', false, (currentText ? '\n' : '') + text);
+        if (!inserted) {
+          textarea.textContent = currentText + (currentText ? '\n' : '') + text;
+          dispatchInput(textarea, text);
+        }
       }
-      
-      safeDispatchEvent(textarea, 'input');
-      safeDispatchEvent(textarea, 'change');
       
       return { success: true, message: '已追加文字' };
     })()
@@ -947,7 +911,7 @@ function generatePasteImageScript(imageDataUrl: string, textareaSelectors: strin
         return { success: true, message: '已通过拖拽事件发送图片' };
       }
       
-      // 方法3: 通过 file input（ChatGPT、Claude 等平台）
+      // 方法3: 通过 file input（ChatGPT 等平台）
       async function pasteViaFileInput(file) {
         const fileInput = findFileInput();
         if (!fileInput) {
@@ -1039,15 +1003,6 @@ function generatePasteImageScript(imageDataUrl: string, textareaSelectors: strin
           if (!result.success) {
             result = await pasteViaDrop(textarea, blob, file);
           }
-        } else if (platformId === 'claude') {
-          // Claude: 优先尝试 file input，然后是 drop 事件
-          result = await pasteViaFileInput(file);
-          if (!result.success) {
-            result = await pasteViaDrop(textarea, blob, file);
-          }
-          if (!result.success) {
-            result = await pasteViaClipboardEvent(textarea, blob, file);
-          }
         } else if (platformId === 'gemini') {
           // Gemini: 优先使用 paste 事件（已经工作）
           result = await pasteViaClipboardEvent(textarea, blob, file);
@@ -1099,54 +1054,17 @@ function handlePaste(event: ClipboardEvent) {
 // 添加图片附件
 function addImageAttachment(file: File) {
   const reader = new FileReader()
-  reader.onload = async (e) => {
+  reader.onload = (e) => {
     const dataUrl = e.target?.result as string
     if (dataUrl) {
       const imgId = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       attachedImages.value.push({
         id: imgId,
-        dataUrl,
-        file
+        dataUrl
       })
-      
-      // 立即同步粘贴图片到所有平台
-      await syncImageToAllPlatforms(dataUrl)
     }
   }
   reader.readAsDataURL(file)
-}
-
-// 同步图片到所有可见账号（均为 Claude）
-async function syncImageToAllPlatforms(imageDataUrl: string) {
-  const siteConfig = claudeConfig
-
-  // 并行粘贴到所有可见账号
-  const promises = visiblePlatforms.value.map(async (platform, index) => {
-    if (!platform) return
-
-    const webviewId = `webview-${platform.id}-${index}`
-    const webview = document.getElementById(webviewId) as any
-
-    if (!webview) return
-
-    try {
-      const inputManager = new InputManager(siteConfig)
-
-      // 先聚焦输入框
-      const focusScript = inputManager.getSimulatePasteScript()
-      await webview.executeJavaScript(focusScript)
-      await new Promise(r => setTimeout(r, 100))
-
-      // 粘贴图片（统一走 claude 策略）
-      const pasteImageScript = generatePasteImageScript(imageDataUrl, siteConfig.textareaSelectors, 'claude')
-      const result = await webview.executeJavaScript(pasteImageScript)
-      console.log(`${platform.id} paste result:`, result)
-    } catch (error) {
-      console.error(`${platform.id} paste error:`, error)
-    }
-  })
-
-  await Promise.all(promises)
 }
 
 // 移除图片附件
@@ -1198,7 +1116,7 @@ function getCustomPanelStyle(index: number) {
     <!-- 顶部工具栏（仅并行工作区显示） -->
     <div v-if="viewMode === 'workspace' && !isMaximized" class="toolbar">
       <div class="toolbar-left">
-        <button class="claude-accounts-btn" @click="backToDashboard" title="返回账号面板">
+        <button class="account-panel-btn" @click="backToDashboard" title="返回账号面板">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>
           账号面板
         </button>
@@ -1237,10 +1155,10 @@ function getCustomPanelStyle(index: number) {
       </div>
     </div>
 
-    <!-- Claude 账号主页 -->
-    <ClaudeDashboard
+    <!-- ChatGPT 账号主页 -->
+    <ChatGPTDashboard
       v-if="viewMode === 'dashboard'"
-      :accounts="claudeAccounts"
+      :accounts="chatgptAccounts"
       @enter="handleEnterAccount"
       @enter-workspace="enterWorkspace"
       @add="handleAddAccount"
@@ -1248,30 +1166,16 @@ function getCustomPanelStyle(index: number) {
       @delete="handleDeleteAccount"
       @export="handleExportAccounts"
       @import="handleImportAccounts"
-      @refresh="refreshUsage"
-      @refresh-all="refreshAllUsage"
     />
-
-    <!-- 额度探测用的隐藏 webview（离屏，每账号一个；在真浏览器上下文内 fetch 用量接口） -->
-    <div v-if="viewMode === 'dashboard'" class="usage-probes" aria-hidden="true">
-      <webview
-        v-for="acc in claudeAccounts"
-        :key="`probe-${acc.id}`"
-        :id="`usage-webview-${acc.id}`"
-        src="https://claude.ai/"
-        :partition="`persist:claude-${acc.id}`"
-        class="usage-probe"
-      ></webview>
-    </div>
 
     <!-- 浏览器式账号标签视图 -->
     <TabbedView
       v-else-if="viewMode === 'tabs'"
-      :accounts="claudeAccounts"
+      :accounts="chatgptAccounts"
       :open-tabs="openTabs"
       :active-tab-id="activeTabId"
-      :url="claudeConfig.url"
-      :color="claudeConfig.color"
+      :url="chatgptConfig.url"
+      :color="chatgptConfig.color"
       @switch-tab="setActiveTab"
       @close-tab="closeTab"
       @open-tab="openAccountTab"
@@ -1285,7 +1189,7 @@ function getCustomPanelStyle(index: number) {
         :slot-index="maximizedPanelIndex"
         :is-maximized="true"
         :input-bar-visible="showInputBar"
-        :accounts="claudeAccounts"
+        :accounts="chatgptAccounts"
         :current-account-id="slotAccounts[maximizedPanelIndex]"
         @change-platform="handleChangePlatform"
         @toggle-maximize="handleToggleMaximize"
@@ -1380,7 +1284,7 @@ function getCustomPanelStyle(index: number) {
         <textarea
           v-model="inputMessage"
           class="message-input"
-          placeholder="输入消息，可粘贴图片，同时发送给所有可见的 Claude 账号..."
+          placeholder="输入消息，可粘贴图片，同时发送给所有可见的 ChatGPT 账号..."
           rows="1"
           :disabled="isSending"
           @focus="isInputFocused = true"
@@ -1415,24 +1319,6 @@ function getCustomPanelStyle(index: number) {
   flex-direction: column;
   background-color: var(--bg);
   overflow: hidden;
-}
-
-/* 额度探测隐藏 webview：离屏但保持渲染/加载（display:none 会导致不加载） */
-.usage-probes {
-  position: absolute;
-  left: -10000px;
-  top: 0;
-  width: 500px;
-  height: 500px;
-  overflow: hidden;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.usage-probe {
-  width: 500px;
-  height: 500px;
-  border: none;
 }
 
 .toolbar {
@@ -1478,9 +1364,9 @@ function getCustomPanelStyle(index: number) {
 }
 
 .input-toggle-btn.active {
-  background-color: var(--clay-tint);
-  border-color: var(--clay-soft);
-  color: var(--clay-deep);
+  background-color: var(--accent-tint);
+  border-color: var(--accent-soft);
+  color: var(--accent-deep);
 }
 
 .history-btn {
@@ -1504,20 +1390,20 @@ function getCustomPanelStyle(index: number) {
 }
 
 .history-btn.active {
-  background-color: var(--clay);
-  border-color: var(--clay);
-  color: #FBF7F2;
+  background-color: var(--accent);
+  border-color: var(--accent);
+  color: #FFFFFF;
 }
 
 .app-title {
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 500;
-  letter-spacing: -0.01em;
+  letter-spacing: 0;
   color: var(--ink);
 }
 
-.claude-accounts-btn {
+.account-panel-btn {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -1525,7 +1411,7 @@ function getCustomPanelStyle(index: number) {
   border: 1px solid var(--line-strong);
   border-radius: 9px;
   background-color: var(--surface);
-  color: var(--clay-deep);
+  color: var(--accent-deep);
   font-family: var(--font-sans);
   font-size: 13px;
   font-weight: 600;
@@ -1533,15 +1419,15 @@ function getCustomPanelStyle(index: number) {
   transition: all 0.18s;
 }
 
-.claude-accounts-btn:hover {
-  background-color: var(--clay-tint);
-  border-color: var(--clay-soft);
+.account-panel-btn:hover {
+  background-color: var(--accent-tint);
+  border-color: var(--accent-soft);
 }
 
-.claude-accounts-btn.active {
-  background-color: var(--clay);
-  color: #FBF7F2;
-  border-color: var(--clay);
+.account-panel-btn.active {
+  background-color: var(--accent);
+  color: #FFFFFF;
+  border-color: var(--accent);
 }
 
 /* 单账号使用视图 */
@@ -1672,7 +1558,7 @@ function getCustomPanelStyle(index: number) {
   min-width: 0;
   min-height: 0;
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: 8px;
 }
 
 /* 底部输入框样式 */
@@ -1692,14 +1578,14 @@ function getCustomPanelStyle(index: number) {
   padding: 10px;
   background-color: var(--surface-alt);
   border: 1px solid var(--line);
-  border-radius: 14px;
+  border-radius: 8px;
 }
 
 .image-preview-item {
   position: relative;
   width: 80px;
   height: 80px;
-  border-radius: 10px;
+  border-radius: 8px;
   overflow: hidden;
   border: 1px solid var(--line-strong);
 }
@@ -1719,7 +1605,7 @@ function getCustomPanelStyle(index: number) {
   padding: 0;
   border: none;
   border-radius: 50%;
-  background-color: rgba(31, 30, 27, 0.72);
+  background-color: rgba(22, 29, 26, 0.74);
   color: #fff;
   cursor: pointer;
   display: flex;
@@ -1746,8 +1632,8 @@ function getCustomPanelStyle(index: number) {
 }
 
 .input-wrapper.focused {
-  border-color: var(--clay);
-  box-shadow: 0 0 0 3px var(--clay-tint);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-tint);
 }
 
 .message-input {
@@ -1777,7 +1663,7 @@ function getCustomPanelStyle(index: number) {
   height: 38px;
   padding: 0;
   border: none;
-  border-radius: 12px;
+  border-radius: 8px;
   background-color: var(--bg-deep);
   color: var(--faint);
   cursor: not-allowed;
@@ -1786,14 +1672,14 @@ function getCustomPanelStyle(index: number) {
 }
 
 .send-btn.active {
-  background-color: var(--clay);
-  color: #FBF7F2;
+  background-color: var(--accent);
+  color: #FFFFFF;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(196, 95, 60, 0.28);
+  box-shadow: 0 2px 8px rgba(15, 157, 122, 0.24);
 }
 
 .send-btn.active:hover {
-  background-color: var(--clay-deep);
+  background-color: var(--accent-deep);
   transform: scale(1.05);
 }
 
@@ -1822,12 +1708,12 @@ function getCustomPanelStyle(index: number) {
 }
 
 .result-item.success {
-  background-color: rgba(94, 135, 107, 0.16);
+  background-color: rgba(50, 122, 85, 0.16);
   color: var(--ok);
 }
 
 .result-item.error {
-  background-color: rgba(187, 79, 61, 0.14);
+  background-color: rgba(190, 66, 58, 0.14);
   color: var(--alert);
 }
 
@@ -1847,8 +1733,8 @@ function getCustomPanelStyle(index: number) {
 .loading-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(251, 247, 242, 0.5);
-  border-top-color: #FBF7F2;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-top-color: #FFFFFF;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

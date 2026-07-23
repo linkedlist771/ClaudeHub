@@ -1,43 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#E8946F"/>
-      <stop offset="52%" stop-color="#D97757"/>
-      <stop offset="100%" stop-color="#BD5836"/>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#26302D"/>
+      <stop offset="1" stop-color="#0C1210"/>
     </linearGradient>
-    <radialGradient id="glow" cx="50%" cy="46%" r="58%">
-      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.16"/>
-      <stop offset="55%" stop-color="#FFFFFF" stop-opacity="0.05"/>
-      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
-    </radialGradient>
-    <linearGradient id="cream" x1="0%" y1="0%" x2="0%" y2="100%">
-      <stop offset="0%" stop-color="#FBF8F1"/>
-      <stop offset="100%" stop-color="#EFE7D7"/>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#63DDB8"/>
+      <stop offset="1" stop-color="#0F9D7A"/>
     </linearGradient>
   </defs>
 
-  <!-- Claude coral squircle -->
-  <rect width="1024" height="1024" rx="230" fill="url(#bg)"/>
-  <!-- soft top highlight for depth -->
-  <rect width="1024" height="1024" rx="230" fill="url(#glow)"/>
-
-  <!-- Anthropic-style sunburst: a hub radiating outward -->
-  <g fill="url(#cream)">
-      <path d="M501.28,424.66 L512.00,174.00 L522.72,424.66 Z"/>
-      <path d="M546.38,431.00 L681.00,219.28 L564.96,441.72 Z"/>
-      <path d="M582.28,459.04 L804.72,343.00 L593.00,477.62 Z"/>
-      <path d="M599.34,501.28 L850.00,512.00 L599.34,522.72 Z"/>
-      <path d="M593.00,546.38 L804.72,681.00 L582.28,564.96 Z"/>
-      <path d="M564.96,582.28 L681.00,804.72 L546.38,593.00 Z"/>
-      <path d="M522.72,599.34 L512.00,850.00 L501.28,599.34 Z"/>
-      <path d="M477.62,593.00 L343.00,804.72 L459.04,582.28 Z"/>
-      <path d="M441.72,564.96 L219.28,681.00 L431.00,546.38 Z"/>
-      <path d="M424.66,522.72 L174.00,512.00 L424.66,501.28 Z"/>
-      <path d="M431.00,477.62 L219.28,343.00 L441.72,459.04 Z"/>
-      <path d="M459.04,441.72 L343.00,219.28 L477.62,431.00 Z"/>
-      <circle cx="512" cy="512" r="100"/>
+  <rect width="1024" height="1024" rx="230" fill="url(#background)"/>
+  <g fill="none" stroke="#6FD9B9" stroke-width="42" stroke-linecap="round" opacity="0.72">
+    <path d="M323 323 438 438"/>
+    <path d="m701 323-115 115"/>
+    <path d="m323 701 115-115"/>
+    <path d="m701 701-115-115"/>
   </g>
-  <!-- lighter core to give the hub a focal point -->
-  <circle cx="512" cy="512" r="46" fill="#FBF8F1"/>
-  <circle cx="512" cy="512" r="46" fill="#D97757" opacity="0.10"/>
+
+  <rect x="160" y="160" width="220" height="220" rx="66" fill="#F3FAF7"/>
+  <rect x="644" y="160" width="220" height="220" rx="66" fill="#B8C8DF"/>
+  <rect x="160" y="644" width="220" height="220" rx="66" fill="#9CE0CB"/>
+  <rect x="644" y="644" width="220" height="220" rx="66" fill="#F3FAF7"/>
+
+  <rect x="376" y="376" width="272" height="272" rx="86" fill="#FFFFFF"/>
+  <circle cx="512" cy="512" r="72" fill="url(#accent)"/>
+  <circle cx="512" cy="512" r="27" fill="#11372C"/>
 </svg>

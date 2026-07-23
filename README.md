@@ -1,105 +1,65 @@
-# ClaudeHub
+# ChatGPT Hub
 
 <p align="center">
-  <strong>多账号 Claude 工作台 — 在一个窗口里管理、切换、并行使用多个 Claude 账号</strong>
+  <img src="public/logo.png" alt="ChatGPT Hub" width="112" height="112">
 </p>
 
 <p align="center">
-  <a href="https://github.com/linkedlist771/ClaudeHub/releases">
-    <img src="https://img.shields.io/github/v/release/linkedlist771/ClaudeHub" alt="GitHub Release">
-  </a>
-  <a href="https://github.com/linkedlist771/ClaudeHub/actions/workflows/release.yml">
-    <img src="https://github.com/linkedlist771/ClaudeHub/actions/workflows/release.yml/badge.svg" alt="Build Status">
-  </a>
-  <a href="https://github.com/linkedlist771/ClaudeHub/blob/main/LICENSE">
-    <img src="https://img.shields.io/github/license/linkedlist771/ClaudeHub" alt="License">
-  </a>
+  <strong>多账号 ChatGPT 桌面工作台</strong>
 </p>
 
----
+ChatGPT Hub 是 ClaudeHub 仓库 `GPT-Hub` 分支上的 ChatGPT 专版。它把多个 ChatGPT 网页会话放在一个 Electron 窗口中，每个账号使用独立的持久化浏览器分区。
 
-## ✨ 功能特点
+> 本项目是非官方社区客户端，与 OpenAI 无隶属或背书关系。ChatGPT 和 OpenAI 是其各自权利人的商标。
 
-- 👥 **多账号管理** - 在一个面板里集中管理多个 Claude 账号，每个账号登录状态独立缓存、互不干扰
-- 📊 **额度一览** - 每个账号显示当前会话 (5h) 与每周 (7d) 用量百分比、重置时间，自动每 5 秒刷新；达到上限会标「受限」
-- 🔀 **快速切换** - 一个账号额度用完时，一键切到没满的账号；最大化视图里点账号名即可下拉切换
-- 🪟 **并行工作区** - 把多个账号窗口并排，统一输入框一键把消息发给所有可见账号
-- 📐 **灵活布局** - 5 种预设布局 + 可拖拽调整的自定义布局
-- 💾 **凭证导出 / 导入** - 把所有账号登录凭证导出为 JSON，换台电脑导入即可免登录使用
-- 🖼️ **图片输入** - 粘贴图片同步到各账号输入框
-- 🔐 **登录持久化** - 各账号登录态独立持久化，无需重复登录
+## 功能
 
-## 📥 下载安装
+- **多账号隔离** - 每个账号使用独立的 cookie、缓存和登录状态
+- **账号标签** - 像浏览器一样打开、切换和保留多个账号标签
+- **并行工作区** - 以预设或自定义布局同时显示多个账号
+- **统一输入** - 将文字或粘贴的图片发送到所有可见账号
+- **会话保存** - 保存并恢复当前布局和各窗口地址
+- **会话迁移** - 显式导出或导入账号会话 cookie
 
-前往 [Releases 页面](https://github.com/linkedlist771/ClaudeHub/releases) 下载最新版本。
+ChatGPT 的网页用量限制会随套餐、模型和产品策略变化。本分支不调用未公开的网页配额接口，也不显示推测的用量百分比。
 
-### macOS 用户注意
+## 开发
 
-应用经过 ad-hoc 签名但**未做 Apple 公证**（没有付费开发者账号），首次打开会提示「无法验证开发者」。
-
-**最简单**：在「应用程序」里**右键点 ClaudeHub → 打开**，弹窗里再点「打开」即可（只需一次）。
-
-或在终端移除隔离属性：
+需要 Node.js 22.12 或更高版本。
 
 ```bash
-xattr -cr /Applications/ClaudeHub.app
-# 或在 Downloads 文件夹：
-xattr -cr ~/Downloads/ClaudeHub.app
+npm ci
+npm run dev
 ```
 
-> 若仍提示「已损坏」（旧版本遗留），用上面的 `xattr -cr` 命令即可解决。
+开发命令会同时启动 Vite 和 Electron。首次添加账号后，在对应窗口中完成 ChatGPT 登录；登录状态会保存在该账号自己的 Electron 分区中。
 
-## 🚀 使用方法
+## 构建
 
-### 1. 添加并登录账号
+```bash
+npm run build
+```
 
-- 在主页输入备注名（如「主号」「同事 A」）点「添加账号」
-- 点卡片「进入使用」进入该账号，正常登录对应的 Claude 账号
-- 登录状态自动缓存，下次免登录
+安装包输出到 `release/<version>/`：
 
-### 2. 查看额度
+- macOS: DMG
+- Windows: NSIS 安装程序
+- Linux: AppImage
 
-主页每张卡片自动显示该账号的当前会话 (5h) / 每周 (7d) 用量与重置时间，每 5 秒刷新；也可点 ⟳ 手动刷新。额度用完的账号会标红「受限」。
+macOS 构建使用 ad-hoc 签名但未公证。首次打开时可在「应用程序」中右键 `ChatGPTHub`，选择「打开」，或执行：
 
-### 3. 切换 / 并行使用
+```bash
+xattr -cr /Applications/ChatGPTHub.app
+```
 
-- **快速切换**：进入某账号后，点标题栏左上的账号名下拉，直接切到别的账号
-- **并行工作区**：主页点「并行工作区」，把不同账号摆进各槽位，底部统一输入框可一键发给所有可见账号
+## 会话导出安全
 
-### 4. 跨电脑迁移
+导出的 JSON 包含可用于恢复登录状态的敏感 cookie，应按密码同等级别保管。由于 OpenAI 安全校验、SSO、MFA 或设备绑定，导入后仍可能需要重新登录。
 
-主页「导出」把所有账号凭证存成 JSON，在另一台电脑「导入」该文件即可直接使用，无需重新登录。
+## 分支
 
-> ⚠️ 导出的 JSON 含登录凭证，等同账号密码，请妥善保管、勿外传。
+当前版本位于 [`GPT-Hub`](https://github.com/linkedlist771/ClaudeHub/tree/GPT-Hub) 分支。Claude 版本继续保留在 `main` 分支。
 
-## ⌨️ 快捷键
+## License
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Enter` | 发送消息 |
-| `Shift + Enter` | 输入换行 |
-| `双击标题栏` | 最大化 / 还原面板 |
-
-## 🛠️ 技术栈
-
-- **框架**: Electron + Vue 3 + Vite
-- **语言**: TypeScript
-- **构建**: electron-builder
-
-## 📝 更新日志
-
-查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新内容。
-
-## 🤝 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 📄 许可证
-
-[MIT License](LICENSE)
-
----
-
-<p align="center">
-  如果这个项目对你有帮助，欢迎给个 ⭐️ Star！
-</p>
+[MIT](LICENSE)

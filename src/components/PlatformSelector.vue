@@ -34,7 +34,7 @@ function handleOverlayClick(event: MouseEvent) {
     <div v-if="visible" class="modal-overlay" @click="handleOverlayClick">
       <div class="modal-content">
         <div class="modal-header">
-          <h3>选择 Claude 账号</h3>
+          <h3>选择 ChatGPT 账号</h3>
           <button class="close-btn" @click="$emit('close')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M18 6L6 18M6 6l12 12"/>
@@ -66,7 +66,7 @@ function handleOverlayClick(event: MouseEvent) {
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(31, 30, 27, 0.42);
+  background-color: rgba(22, 29, 26, 0.44);
   backdrop-filter: blur(3px);
   display: flex;
   align-items: center;
@@ -77,7 +77,7 @@ function handleOverlayClick(event: MouseEvent) {
 .modal-content {
   background-color: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 8px;
   width: 380px;
   max-width: 90vw;
   overflow: hidden;
@@ -94,7 +94,7 @@ function handleOverlayClick(event: MouseEvent) {
 
 .modal-header h3 {
   margin: 0;
-  font-family: var(--font-serif);
+  font-family: var(--font-display);
   font-size: 18px;
   font-weight: 500;
   color: var(--ink);
@@ -131,7 +131,7 @@ function handleOverlayClick(event: MouseEvent) {
   width: 100%;
   padding: 12px 14px;
   border: 1px solid transparent;
-  border-radius: 11px;
+  border-radius: 8px;
   background-color: transparent;
   cursor: pointer;
   transition: all 0.18s;
@@ -143,8 +143,8 @@ function handleOverlayClick(event: MouseEvent) {
 }
 
 .platform-item.active {
-  background-color: var(--clay-tint);
-  border-color: var(--clay-soft);
+  background-color: var(--accent-tint);
+  border-color: var(--accent-soft);
 }
 
 .platform-indicator {
@@ -169,4 +169,3 @@ function handleOverlayClick(event: MouseEvent) {
   white-space: nowrap;
 }
 </style>
-
